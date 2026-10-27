@@ -8,9 +8,11 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 [ARCHITECTURE](docs/ARCHITECTURE.md), [AGENT](docs/AGENT.md) (strategist) and
 [BUILD](docs/BUILD.md).
 
-> **Status: milestone M0 (foundations).** The workspace can log in, download
-> the instrument master and historical candles. It **cannot place orders**:
-> every order method returns `Unsupported` until the M3 risk guard and OMS exist.
+> **Status: milestone M1 (market data + indicators).** The workspace can log
+> in, download the instrument master and historical candles, stream live ticks
+> over SmartAPI WebSocket 2.0, and build 1m/5m bars, session VWAP, the opening
+> range and incremental indicators. It **cannot place orders**: every order
+> method returns `Unsupported` until the M3 risk guard and OMS exist.
 
 ## Layout
 
@@ -19,7 +21,11 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 | `crates/core` (`saarthi-core`) | Money as integer paise, instruments, bars, timeframes, `MarketClock` (IST phases + NSE holidays) |
 | `crates/broker` (`saarthi-broker`) | `Broker` trait; SmartAPI adapter: TOTP login, re-login on expiry, throttling, retries, instrument master, candles |
 | `crates/store` (`saarthi-store`) | Atomic Parquet writers/readers for bars and instruments; resume manifest |
+| `crates/feed` (`saarthi-feed`) | SmartAPI WebSocket 2.0: binary decode, subscribe, heartbeat, reconnect with backoff, staleness watchdog, raw-frame recorder |
+| `crates/bars` (`saarthi-bars`) | Tick → 1m → 5m bars, session VWAP, opening range, per-symbol indicator `Snapshot` |
+| `crates/ta` (`saarthi-ta`) | Incremental EMA, ATR, RSI, VWAP bands, volume z-score (checked against TA-Lib) |
 | `bins/fetch` (`fetch`) | Market-data downloader CLI |
+| `bins/feedcheck` (`feedcheck`) | Records a live session and checks its bars against Angel's candles (M1 exit) |
 | `config/` | `engine.toml`, `risk.toml`, `universe.toml` (NIFTY 100), `holidays.toml`, `secrets.env.example` |
 
 ## Quick start
@@ -48,6 +54,26 @@ Refresh `config/holidays.toml` every December. The clock refuses to answer for
 a year the file does not cover, so a stale file means "don't trade", never
 "trade on a holiday".
 
+## Live feed check (M1 exit)
+
+The M1 exit criterion is "live 1-min bars match Angel's candles for a full
+session (±1 tick)". On a trading day:
+
+```bash
+cargo run --release -p feedcheck -- record            # start before 09:15; stops at 15:31
+# after the close:
+cargo run --release -p fetch -- candles --tf 1m --from 2026-10-28 --to 2026-10-28
+cargo run --release -p feedcheck -- compare --date 2026-10-28
+```
+
+`record` subscribes the universe in Quote mode, writes every raw frame to
+`data/live/<date>/frames.bin` and the bars it builds to
+`data/live/<date>/1m/`. `compare` prints PASS/FAIL per symbol with the
+minutes that differ. Bars after a feed drop are marked partial and skipped.
+If the 09:15 bar is the only mismatch, flip `[bars] pre_open` in
+`engine.toml` and run `feedcheck replay --date …` to rebuild the bars from the
+recording without waiting for another session.
+
 ## Multiple accounts
 
 Nothing is tied to a single account. Credentials are a value passed to the
@@ -70,8 +96,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace        # or: cargo nextest run --workspace
 ```
 
-Broker tests run against a mocked HTTP server (`wiremock`), so no Angel One
-credentials are needed.
+Broker tests run against a mocked HTTP server (`wiremock`) and feed tests
+against a local WebSocket server sending synthetic binary frames, so no Angel
+One credentials are needed. Indicator reference values come from TA-Lib; see
+`crates/ta/tests/data/gen_reference.py` to regenerate them.
 
 ## Selling this to other people: regulatory note
 
