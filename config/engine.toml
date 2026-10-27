@@ -1,0 +1,25 @@
+# Saarthi engine configuration. Not secret; safe to commit per deployment.
+# Hard trading limits live in risk.toml; credentials live in secrets.env.
+
+# backtest | paper | live. Used by the engine from M3; live stays off until the M5 gate.
+mode = "paper"
+
+[paths]
+data_dir = "data"
+universe = "config/universe.toml"
+holidays = "config/holidays.toml"
+
+[smartapi]
+base_url = "https://apiconnect.angelone.in"
+instruments_url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
+# SmartAPI documents 3 req/s for historical data. Requests are evenly spaced.
+historical_requests_per_sec = 2.0
+requests_per_sec = 5.0
+max_retries = 5
+retry_base_delay_ms = 1000
+timeout_secs = 30
+# Sent with every request. For live orders the public IP must be the static
+# IP registered with Angel One (SEBI retail-algo framework).
+client_local_ip = "127.0.0.1"
+client_public_ip = "127.0.0.1"
+mac_address = "00:00:00:00:00:00"

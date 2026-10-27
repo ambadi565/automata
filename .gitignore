@@ -1,0 +1,7 @@
+/target
+/data/
+config/secrets.env
+config/*.secrets.env
+config/profiles/*/secrets.env
+*.parquet.tmp
+.env
