@@ -36,7 +36,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
 polars = { version = "0.44", features = ["parquet", "lazy"] }
 axum = "0.7"
 totp-rs = "5"
@@ -62,8 +62,8 @@ Strategist (`strategist/pyproject.toml`): `claude-agent-sdk`, `httpx`, `polars`,
 ## 5. Test
 ```bash
 cargo nextest run --workspace            # unit + integration
-cargo test -p risk -- breach             # every hard limit has a breach test
-cargo test -p oms -- crash_recovery      # kill -9 simulation
+cargo test -p saarthi-risk -- breach     # every hard limit has a breach test
+cargo test -p saarthi-oms -- crash_recovery   # real kill -9 of a child process mid-trade
 cd strategist && uv run pytest           # plan schema + clamping round-trips
 ```
 Required test suites before live:
@@ -84,7 +84,8 @@ single in-sample run. Thresholds: `config/backtest.toml`. To test the pipeline w
 
 ## 7. Run modes
 ```bash
-SAARTHI_MODE=paper ./target/release/engine --config config/engine.toml
+SAARTHI_MODE=paper ./target/release/engine --config config/engine.toml run
+./target/release/engine exit-check --days 5                                   # M3 exit
 SAARTHI_MODE=live  ./target/release/engine --config config/engine.toml   # only after M5
 uv run strategist/agent.py premarket|review|eod
 ```

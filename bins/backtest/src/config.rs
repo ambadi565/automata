@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use saarthi_core::{Price, SessionTimes, Tf};
+use saarthi_core::Tf;
 use serde::{Deserialize, Serialize};
 
 fn read(path: &Path) -> Result<String> {
@@ -50,46 +50,10 @@ impl BacktestConfig {
     }
 }
 
-/// The `risk.toml` limits the backtester applies. The M3 risk guard enforces
-/// the full set live; this is the subset that changes backtest results.
-#[derive(Debug, Clone, Deserialize)]
-pub struct RiskLimits {
-    pub capital_base_inr: f64,
-    pub max_risk_per_trade_pct: f64,
-    pub max_open_positions: usize,
-    pub max_gross_exposure_x: f64,
-    pub max_daily_loss_pct: f64,
-    #[serde(default)]
-    pub daily_profit_lock_pct: f64,
-    pub max_trades_per_day: u32,
-    pub max_consecutive_losses: u32,
-    #[serde(default = "default_cooldown")]
-    pub consecutive_loss_cooldown_min: i64,
-    pub min_price_inr: f64,
-    pub no_new_entries_after: String,
-    pub square_off_at: String,
-    pub max_order_qty: u32,
-}
-
-fn default_cooldown() -> i64 {
-    30
-}
-
-impl RiskLimits {
-    pub fn load(path: &Path) -> Result<Self> {
-        let r: RiskLimits = toml::from_str(&read(path)?).with_context(|| format!("parsing {}", path.display()))?;
-        r.session().context("risk.toml cut-offs")?;
-        Ok(r)
-    }
-
-    pub fn session(&self) -> Result<SessionTimes> {
-        Ok(SessionTimes::default().with_cutoffs(&self.no_new_entries_after, &self.square_off_at)?)
-    }
-
-    pub fn min_price(&self) -> Price {
-        Price((self.min_price_inr * 100.0).round() as i64)
-    }
-}
+/// The `risk.toml` limits, shared with the live risk guard. The backtester
+/// applies the subset that changes results (sizing, positions, exposure,
+/// daily loss, trades per day, cooldown, cut-offs).
+pub use saarthi_risk::RiskLimits;
 
 #[cfg(test)]
 mod tests {

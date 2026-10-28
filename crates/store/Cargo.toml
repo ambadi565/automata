@@ -1,6 +1,6 @@
 [package]
 name = "saarthi-store"
-description = "Cold storage: Parquet bars and instruments, fetch manifests. SQLite hot store lands in M3."
+description = "Storage: SQLite (WAL) hot store for orders, trades and events; Parquet bars and instruments."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,6 +15,7 @@ chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+rusqlite.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

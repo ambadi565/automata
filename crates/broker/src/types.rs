@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use saarthi_core::{Exchange, Price, Qty, Side, Symbol};
+use serde::{Deserialize, Serialize};
 
 use crate::secret::Secret;
 
@@ -15,16 +16,19 @@ pub struct Session {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct BrokerOrderId(pub String);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Product {
     Intraday,
     Delivery,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum OrderKind {
     Market,
     Limit { price: Price },
@@ -32,7 +36,7 @@ pub enum OrderKind {
     StopLossLimit { trigger: Price, price: Price },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderRequest {
     /// Our idempotency key; mapped to the broker id by the OMS.
     pub client_order_id: String,
@@ -47,14 +51,15 @@ pub struct OrderRequest {
     pub tag: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Modify {
     pub qty: Option<Qty>,
     pub price: Option<Price>,
     pub trigger: Option<Price>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum OrderStatus {
     New,
     Sent,
@@ -65,7 +70,29 @@ pub enum OrderStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl OrderStatus {
+    /// Filled, rejected or cancelled: nothing more can happen to it.
+    pub fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            OrderStatus::Filled | OrderStatus::Rejected | OrderStatus::Cancelled
+        )
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            OrderStatus::New => "new",
+            OrderStatus::Sent => "sent",
+            OrderStatus::Open => "open",
+            OrderStatus::PartiallyFilled => "partially_filled",
+            OrderStatus::Filled => "filled",
+            OrderStatus::Rejected => "rejected",
+            OrderStatus::Cancelled => "cancelled",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BrokerOrder {
     pub id: BrokerOrderId,
     pub client_order_id: Option<String>,
@@ -78,7 +105,7 @@ pub struct BrokerOrder {
     pub reject_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Position {
     pub symbol: Symbol,
     pub exchange: Exchange,
@@ -89,7 +116,7 @@ pub struct Position {
     pub unrealized: Price,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Funds {
     pub net: Price,
     pub available_cash: Price,

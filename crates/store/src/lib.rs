@@ -1,5 +1,7 @@
 //! Storage for Saarthi.
 //!
+//! * [`sqlite`]: the hot store (SQLite, WAL): trades, orders, fills, events
+//!   and engine state, written so a crash loses nothing that was committed.
 //! * [`parquet`]: bars and the instrument master as Parquet. Prices are stored
 //!   as `Int64` paise, timestamps as UTC milliseconds tagged `Asia/Kolkata`.
 //! * [`manifest`]: which date ranges the fetcher has already covered, so
@@ -12,10 +14,12 @@ pub mod error;
 pub mod layout;
 pub mod manifest;
 pub mod parquet;
+pub mod sqlite;
 
 pub use error::{StoreError, StoreResult};
 pub use layout::DataLayout;
 pub use manifest::{Coverage, Manifest};
+pub use sqlite::{Db, EventRow, FillRow, Writer};
 
 use std::io::Write;
 use std::path::Path;

@@ -3,10 +3,12 @@
 //! Strategies and the OMS only ever see the [`Broker`] trait, so the same code
 //! runs against backtest, paper and live implementations. [`Backtest`]
 //! replays history through a simulated exchange with Indian intraday charges
-//! and slippage; it has no network code.
+//! and slippage; [`Paper`] simulates the exchange against the live feed.
+//! Neither has network code.
 
 pub mod backtest;
 pub mod error;
+pub mod paper;
 pub mod ratelimit;
 pub mod secret;
 pub mod smartapi;
@@ -17,6 +19,7 @@ use saarthi_core::{Bar, Instrument, Tf, Ts};
 
 pub use backtest::Backtest;
 pub use error::{BrokerError, BrokerResult};
+pub use paper::{Paper, PaperConfig, PaperFill};
 pub use ratelimit::RateLimiter;
 pub use secret::Secret;
 pub use types::*;

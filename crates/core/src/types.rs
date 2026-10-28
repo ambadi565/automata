@@ -12,7 +12,7 @@ use crate::money::Price;
 pub type Ts = DateTime<Utc>;
 
 /// A broker trading symbol, e.g. `RELIANCE-EQ`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Symbol(pub String);
 
@@ -91,10 +91,28 @@ impl fmt::Display for Exchange {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Side {
     Buy,
     Sell,
+}
+
+impl Side {
+    pub fn opposite(self) -> Side {
+        match self {
+            Side::Buy => Side::Sell,
+            Side::Sell => Side::Buy,
+        }
+    }
+
+    /// +1 for buy, −1 for sell.
+    pub fn sign(self) -> i64 {
+        match self {
+            Side::Buy => 1,
+            Side::Sell => -1,
+        }
+    }
 }
 
 /// Bar timeframe.

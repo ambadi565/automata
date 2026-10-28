@@ -1,0 +1,26 @@
+[package]
+name = "saarthi-oms"
+description = "Order management: order state machine, broker-side stop pairing, reconciliation, square-off, crash recovery."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+saarthi-core.workspace = true
+saarthi-broker.workspace = true
+saarthi-store.workspace = true
+saarthi-risk.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tempfile.workspace = true
+async-trait.workspace = true
+
+[lints]
+workspace = true

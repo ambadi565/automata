@@ -43,10 +43,12 @@ Turning X into kX in a day is not a design target. Chasing it forces oversized b
 - **Gate:** a strategy goes live only if out-of-sample shows PF > 1.3, max DD < 8%, ≥ 200 trades
 
 ### M3 — Risk + OMS + paper trading (Weeks 5–6)
-- [ ] `risk` with every check in ARCHITECTURE §5.7, each unit-tested with breach scenarios
-- [ ] `oms` state machine, SL pairing, reconciliation, square-off
-- [ ] `broker::Paper` driven by the live feed
-- [ ] `store`: SQLite WAL schema + crash-recovery test (kill -9 mid-trade → restart → state intact)
+- [x] `risk` with every check in ARCHITECTURE §5.7, each unit-tested with breach scenarios
+- [x] `oms` state machine, SL pairing, reconciliation, square-off
+- [x] `broker::Paper` driven by the live feed
+- [x] `store`: SQLite WAL schema + crash-recovery test (kill -9 mid-trade → restart → state intact)
+- [x] `engine` daemon (paper mode), offline `replay`, kill switch, `exit-check`
+- [ ] Run 5 paper sessions (needs credentials and market days)
 - **Exit:** 5 consecutive paper days with no crash and all positions flat by 15:10
 
 ### M4 — Claude strategist (Week 7)

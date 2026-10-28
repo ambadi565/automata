@@ -27,7 +27,7 @@
 | TOTP login | `totp-rs` | Fully unattended daily login |
 | Serialization | `serde`, `serde_json`, `toml` | Plan, config, and state |
 | Indicators | in-house `ta` module (incremental) | O(1) updates per tick; no recomputation |
-| Hot store | **SQLite (WAL)** via `sqlx` | Orders, fills, positions, events (crash recovery) |
+| Hot store | **SQLite (WAL)** via `rusqlite` (bundled) | Orders, fills, positions, events (crash recovery); synchronous, one writer, no runtime or build-time DB needed |
 | Cold store | **Parquet** via `polars`/`arrow` | Ticks, 1-min bars, history for backtests |
 | Local control API | `axum` on `127.0.0.1` | Claude's tools and the Telegram bot talk to the engine through it |
 | Logging and metrics | `tracing` + JSON logs | Every decision is auditable |

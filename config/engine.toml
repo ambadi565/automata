@@ -52,3 +52,29 @@ pre_open = "fold_into_open"
 # How long a bar waits for late ticks after its minute ends.
 close_grace_ms = 2000
 higher = ["5m"]
+
+# The trading loop (M3). SAARTHI_MODE overrides `mode` above.
+[engine]
+risk = "config/risk.toml"
+costs = "config/costs.toml"
+# Strategies allowed to trade. Paper trading runs all three so you can watch
+# them; for live, keep only those that passed the M2 gate on real data.
+strategies = ["orb", "vwap_revert", "momentum"]
+# Subset of the universe to trade; empty = all of universe.toml.
+symbols = []
+direction = "both"
+# Starting cash of a new paper account, in rupees.
+paper_capital_inr = 1000000
+# Days of 5m candles from data/ used to warm up indicators.
+warmup_days = 5
+sync_secs = 1
+reconcile_secs = 30
+square_off_retry_secs = 5
+square_off_alert_after = 3
+# The daemon exits at this IST time once flat.
+stop_at = "15:35"
+# Kill switch: this file in data/accounts/<client>/paper/ halts and flattens.
+halt_file = "HALT"
+
+[engine.indicators]
+tf = "5m"
