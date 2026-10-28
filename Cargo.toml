@@ -10,6 +10,8 @@ members = [
     "crates/strategy",
     "crates/risk",
     "crates/oms",
+    "crates/plan",
+    "crates/control",
     "bins/fetch",
     "bins/feedcheck",
     "bins/backtest",
@@ -32,6 +34,8 @@ saarthi-ta = { path = "crates/ta" }
 saarthi-strategy = { path = "crates/strategy" }
 saarthi-risk = { path = "crates/risk" }
 saarthi-oms = { path = "crates/oms" }
+saarthi-plan = { path = "crates/plan" }
+saarthi-control = { path = "crates/control" }
 
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
@@ -54,6 +58,7 @@ arrow-schema = "56"
 parquet = { version = "56", default-features = false, features = ["arrow", "snap"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 wiremock = "0.6"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
 tempfile = "3"
 
 [workspace.lints.rust]

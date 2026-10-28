@@ -58,6 +58,12 @@ pub struct EngineSettings {
     pub stop_at: String,
     /// Presence of this file (in the account dir) is the kill switch.
     pub halt_file: String,
+    /// The conservative plan used when the strategist has not written one.
+    pub default_plan: PathBuf,
+    /// Control API address (loopback only). Empty disables it.
+    pub control_addr: String,
+    /// Indices shown on `/context`: name → NSE token.
+    pub index_tokens: Vec<(String, String)>,
 }
 
 impl Default for EngineSettings {
@@ -77,6 +83,13 @@ impl Default for EngineSettings {
             square_off_alert_after: 3,
             stop_at: "15:35".into(),
             halt_file: "HALT".into(),
+            default_plan: "config/plan.default.json".into(),
+            control_addr: "127.0.0.1:7070".into(),
+            index_tokens: vec![
+                ("NIFTY".into(), "99926000".into()),
+                ("BANKNIFTY".into(), "99926009".into()),
+                ("INDIA VIX".into(), "99926017".into()),
+            ],
         }
     }
 }
@@ -108,6 +121,16 @@ impl Config {
             bail!("[engine] paper_capital_inr must be positive");
         }
         saarthi_core::clock::parse_hhmm(&self.engine.stop_at)?;
+        if !self.engine.control_addr.is_empty() {
+            let a: std::net::SocketAddr = self
+                .engine
+                .control_addr
+                .parse()
+                .with_context(|| format!("[engine] control_addr = {:?}", self.engine.control_addr))?;
+            if !a.ip().is_loopback() {
+                bail!("[engine] control_addr must be a loopback address (it has no TLS)");
+            }
+        }
         Ok(())
     }
 

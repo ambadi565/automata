@@ -152,6 +152,20 @@ pub fn paper(l: &Loaded, state: Option<PathBuf>) -> Result<Paper> {
     })?)
 }
 
+/// A secret from the environment, else from the secrets file.
+pub fn secret(path: Option<&Path>, key: &str) -> Option<String> {
+    let from_env = std::env::var(key).ok().filter(|v| !v.trim().is_empty());
+    from_env
+        .or_else(|| {
+            dotenvy::from_path_iter(path?)
+                .ok()?
+                .flatten()
+                .find(|(k, v)| k == key && !v.trim().is_empty())
+                .map(|(_, v)| v)
+        })
+        .map(|v| v.trim().to_string())
+}
+
 pub fn secs(s: u64) -> TimeDelta {
     TimeDelta::seconds(s as i64)
 }

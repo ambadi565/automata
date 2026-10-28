@@ -212,10 +212,11 @@ fn parts(
     date: NaiveDate,
     alerts: SharedAlerts,
     halt_file: Option<PathBuf>,
-) -> Parts<Paper> {
+) -> Result<Parts<Paper>> {
     let e = &l.cfg.engine;
+    let default_plan = saarthi_plan::load(&e.default_plan).with_context(|| "[engine] default_plan")?;
     let warm = warmup(l, &insts, e.indicators.tf, date, e.warmup_days);
-    Parts {
+    Ok(Parts {
         broker: Arc::new(paper.clone()),
         paper: Some(paper),
         db,
@@ -237,7 +238,9 @@ fn parts(
         sync_every: secs(e.sync_secs),
         square_off_retry: secs(e.square_off_retry_secs),
         square_off_alert_after: e.square_off_alert_after,
-    }
+        default_plan,
+        index_tokens: e.index_tokens.clone(),
+    })
 }
 
 async fn run_paper(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCode> {
@@ -269,10 +272,11 @@ async fn run_paper(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCod
     };
     let paper = paper(l, Some(acct.paper_state()))?;
     let db = Db::open(&acct.db())?;
-    let tokens: Vec<_> = insts
+    let mut tokens: Vec<_> = insts
         .iter()
         .map(|i| (ExchangeType::from_exchange(i.exchange), i.token.clone()))
         .collect();
+    let traded = tokens.len();
     let p = parts(
         l,
         paper,
@@ -281,13 +285,13 @@ async fn run_paper(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCod
         date,
         alerts.clone(),
         Some(acct.halt_file(&l.cfg.engine.halt_file)),
-    );
+    )?;
     let mut eng = Engine::new(p, now).await?;
     alerts.send(
         Severity::Info,
         &format!(
             "engine up for {date} (paper): {} symbols, capital base ₹{}",
-            tokens.len(),
+            traded,
             eng.risk().capital()
         ),
     );
@@ -298,7 +302,29 @@ async fn run_paper(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCod
         market_hours(l.clock.clone()),
         None,
     );
+    tokens.extend(
+        l.cfg
+            .engine
+            .index_tokens
+            .iter()
+            .map(|(_, t)| (ExchangeType::NseCm, t.clone())),
+    );
     feed.subscribe(FeedMode::Quote, tokens).await?;
+    let (control, mut requests) = saarthi_control::Handle::channel(16);
+    if l.cfg.engine.control_addr.is_empty() {
+        tracing::info!("control API disabled");
+    } else {
+        match engine::secret(secrets_path(&cli.secrets), "CONTROL_API_TOKEN") {
+            Some(token) => {
+                let addr = l.cfg.engine.control_addr.parse()?;
+                saarthi_control::serve(addr, token, control.clone()).await?;
+            }
+            None => alerts.send(
+                Severity::Warning,
+                "CONTROL_API_TOKEN not set: control API off, the strategist cannot submit plans",
+            ),
+        }
+    }
     let mut timer = tokio::time::interval(Duration::from_secs(1));
     timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let stop_at = MarketClock::at(date, saarthi_core::clock::parse_hhmm(&l.cfg.engine.stop_at)?);
@@ -330,6 +356,9 @@ async fn run_paper(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCod
                 Some(other) => tracing::debug!(?other, "feed event"),
                 None => bail!("feed task stopped"),
             },
+            Some((req, reply)) = requests.recv() => {
+                let _ = reply.send(eng.handle(req, Utc::now()).await);
+            }
             _ = timer.tick() => {
                 let now = Utc::now();
                 let st = feed.status();
@@ -391,7 +420,7 @@ async fn replay(l: &Loaded, date: NaiveDate, frames: Option<PathBuf>, out: Optio
         date,
         alerts.clone(),
         None,
-    );
+    )?;
     let start = frames[0].0;
     let mut eng = Engine::new(p, start).await?;
     let mut next_timer = start;

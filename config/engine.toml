@@ -75,6 +75,13 @@ square_off_alert_after = 3
 stop_at = "15:35"
 # Kill switch: this file in data/accounts/<client>/paper/ halts and flattens.
 halt_file = "HALT"
+# Used whenever no valid strategist plan is in force (half risk, everything on).
+default_plan = "config/plan.default.json"
+# Control API for the strategist and Telegram bot. Loopback only; needs
+# CONTROL_API_TOKEN (>= 16 chars) in secrets.env. "" turns it off.
+control_addr = "127.0.0.1:7070"
+# Indices shown on /context (never traded): [name, NSE token].
+index_tokens = [["NIFTY", "99926000"], ["BANKNIFTY", "99926009"], ["INDIA VIX", "99926017"]]
 
 [engine.indicators]
 tf = "5m"
