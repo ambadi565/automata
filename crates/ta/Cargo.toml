@@ -1,0 +1,12 @@
+[package]
+name = "saarthi-ta"
+description = "Incremental technical indicators: EMA, ATR, RSI, VWAP bands, volume z-score."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

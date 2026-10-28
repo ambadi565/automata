@@ -154,6 +154,20 @@ impl FromStr for Tf {
     }
 }
 
+/// Serialized as its short name (`"5m"`), as in config files.
+impl Serialize for Tf {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for Tf {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 impl fmt::Display for Tf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
@@ -197,6 +211,26 @@ impl Bar {
     }
 }
 
+/// One market-data update for an instrument, as the engine sees it.
+///
+/// Fields beyond the last price are `None` when the feed mode does not carry
+/// them (SmartAPI's LTP mode has no volume, for example).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tick {
+    /// Broker token, the key the feed and the instrument master share.
+    pub token: String,
+    pub exchange: Exchange,
+    /// Exchange timestamp of the update.
+    pub ts: Ts,
+    pub ltp: Price,
+    /// Quantity of the last trade.
+    pub last_qty: Option<u64>,
+    /// Cumulative traded volume for the day. Bar volumes are its differences.
+    pub day_volume: Option<u64>,
+    /// The exchange's average traded price for the day (its VWAP).
+    pub avg_price: Option<Price>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,6 +241,9 @@ mod tests {
             assert_eq!(tf.as_str().parse::<Tf>().unwrap(), tf);
         }
         assert!("2m".parse::<Tf>().is_err());
+        assert_eq!(serde_json::to_string(&Tf::M5).unwrap(), r#""5m""#);
+        assert_eq!(serde_json::from_str::<Tf>(r#""1h""#).unwrap(), Tf::H1);
+        assert!(serde_json::from_str::<Tf>(r#""7m""#).is_err());
     }
 
     #[test]

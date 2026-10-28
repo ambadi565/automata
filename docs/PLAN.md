@@ -29,9 +29,10 @@ Turning X into kX in a day is not a design target. Chasing it forces oversized b
 - **Exit:** `cargo run -p fetch` downloads 1 year of 5-min data for NIFTY 100
 
 ### M1 — Market data + indicators (Week 2)
-- [ ] `feed`: SmartAPI WebSocket 2.0, binary decode, reconnect, staleness
-- [ ] `bars`: tick→1m→5m, session VWAP, opening range
-- [ ] `ta`: incremental EMA/ATR/RSI/VWAP bands/volume z-score, with tests vs reference values
+- [x] `feed`: SmartAPI WebSocket 2.0, binary decode, reconnect, staleness
+- [x] `bars`: tick→1m→5m, session VWAP, opening range
+- [x] `ta`: incremental EMA/ATR/RSI/VWAP bands/volume z-score, with tests vs reference values
+- [ ] Exit check on a live session: `feedcheck record`, then `feedcheck compare` (needs credentials)
 - **Exit:** live 1-min bars match Angel's candles for a full session (±1 tick)
 
 ### M2 — Strategies + backtester (Weeks 3–4)

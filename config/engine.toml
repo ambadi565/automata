@@ -23,3 +23,32 @@ timeout_secs = 30
 client_local_ip = "127.0.0.1"
 client_public_ip = "127.0.0.1"
 mac_address = "00:00:00:00:00:00"
+
+# Live market data: SmartAPI WebSocket 2.0.
+[feed]
+url = "wss://smartapisocket.angelone.in/smart-stream"
+# Text "ping" heartbeat; Angel closes connections silent for 30 s.
+heartbeat_ms = 25000
+# Reconnect if nothing at all (not even "pong") arrives for this long.
+read_timeout_ms = 70000
+connect_timeout_ms = 10000
+# Exponential backoff with jitter between reconnect attempts.
+reconnect_initial_ms = 500
+reconnect_max_ms = 30000
+# ARCHITECTURE §7: no ticks for 10 s in market hours blocks new entries;
+# 120 s with open positions means flatten.
+stale_warn_ms = 10000
+stale_critical_ms = 120000
+# Angel allows 1000 token subscriptions per connection.
+max_tokens = 1000
+# Send "Authorization: Bearer <jwt>"; set false to send the bare JWT.
+bearer_prefix = true
+
+[bars]
+# fold_into_open: the 09:08 pre-open auction trade counts in the 09:15 bar.
+# ignore: pre-open trades only set the volume baseline. Run
+# `feedcheck compare` once each way to see which matches Angel's candles.
+pre_open = "fold_into_open"
+# How long a bar waits for late ticks after its minute ends.
+close_grace_ms = 2000
+higher = ["5m"]

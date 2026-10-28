@@ -11,4 +11,4 @@ pub mod types;
 pub use clock::{Holiday, HolidayCalendar, IST, MarketClock, Phase, SessionTimes};
 pub use error::{CoreError, CoreResult};
 pub use money::{Price, Qty};
-pub use types::{Bar, Exchange, Instrument, Side, Symbol, Tf, Ts};
+pub use types::{Bar, Exchange, Instrument, Side, Symbol, Tf, Tick, Ts};

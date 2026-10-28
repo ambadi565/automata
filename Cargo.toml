@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/broker", "crates/store", "bins/fetch"]
+members = ["crates/core", "crates/broker", "crates/store", "crates/feed", "crates/bars", "crates/ta", "bins/fetch", "bins/feedcheck"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,8 +12,13 @@ publish = false
 saarthi-core = { path = "crates/core" }
 saarthi-broker = { path = "crates/broker" }
 saarthi-store = { path = "crates/store" }
+saarthi-feed = { path = "crates/feed" }
+saarthi-bars = { path = "crates/bars" }
+saarthi-ta = { path = "crates/ta" }
 
 tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
