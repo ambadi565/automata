@@ -1,0 +1,20 @@
+[package]
+name = "saarthi-bars"
+description = "Tick to 1m to 5m bars, session VWAP, opening range and per-symbol indicator snapshots."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+saarthi-core.workspace = true
+saarthi-ta.workspace = true
+serde.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+toml.workspace = true
+
+[lints]
+workspace = true

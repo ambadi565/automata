@@ -1,0 +1,28 @@
+[package]
+name = "fetch"
+description = "Downloads the instrument master and historical candles to Parquet."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+saarthi-core.workspace = true
+saarthi-broker.workspace = true
+saarthi-store.workspace = true
+tokio.workspace = true
+serde.workspace = true
+toml.workspace = true
+chrono.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+wiremock.workspace = true
+tempfile.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

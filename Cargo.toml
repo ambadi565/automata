@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/broker", "crates/store", "crates/feed", "crates/bars", "crates/ta", "bins/fetch", "bins/feedcheck"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[workspace.dependencies]
+saarthi-core = { path = "crates/core" }
+saarthi-broker = { path = "crates/broker" }
+saarthi-store = { path = "crates/store" }
+saarthi-feed = { path = "crates/feed" }
+saarthi-bars = { path = "crates/bars" }
+saarthi-ta = { path = "crates/ta" }
+
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+totp-rs = "5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+thiserror = "2"
+anyhow = "1"
+async-trait = "0.1"
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+arrow-array = "56"
+arrow-schema = "56"
+parquet = { version = "56", default-features = false, features = ["arrow", "snap"] }
+wiremock = "0.6"
+tempfile = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+float_cmp = "deny"

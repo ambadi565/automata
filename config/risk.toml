@@ -1,0 +1,20 @@
+# HARD risk limits. The engine enforces these; Claude's plan is clamped to
+# them and can never edit this file. Halve them for the first 20 live days.
+#
+# Percentages are of capital_base_inr. Money in config is rupees; the engine
+# converts to integer paise on load.
+
+capital_base_inr          = 0        # 0 = read from broker funds at 09:00
+max_risk_per_trade_pct    = 0.5      # (entry - stop) x qty, as % of capital
+max_open_positions        = 3
+max_gross_exposure_x      = 3.0      # gross exposure / capital, incl. intraday leverage
+max_daily_loss_pct        = 2.0      # hit -> flatten everything and halt for the day
+daily_profit_lock_pct     = 0        # 0 = off; >0 stops NEW entries once hit (never a target to chase)
+max_trades_per_day        = 15
+max_consecutive_losses    = 4        # hit -> 30 min cooldown
+consecutive_loss_cooldown_min = 30
+min_price_inr             = 50
+no_new_entries_after      = "14:45"  # IST
+square_off_at             = "15:10"  # IST
+max_order_qty             = 2000
+max_orders_per_second     = 5        # stay below the exchange/broker algo threshold unless registered

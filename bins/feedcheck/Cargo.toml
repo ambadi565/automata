@@ -1,0 +1,30 @@
+[package]
+name = "feedcheck"
+description = "Records a live SmartAPI session, builds bars from it and checks them against Angel's candles (the M1 exit check)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+saarthi-core.workspace = true
+saarthi-broker.workspace = true
+saarthi-store.workspace = true
+saarthi-feed.workspace = true
+saarthi-bars.workspace = true
+fetch = { path = "../fetch" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+chrono.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

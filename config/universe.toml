@@ -1,0 +1,32 @@
+# NIFTY 100 constituents as SmartAPI trading symbols.
+#
+# Compiled 2026-10-27 from public constituent listings. Index membership
+# changes at NSE's semi-annual rebalance, so regenerate it from the official
+# file before relying on it:
+#   1. Download ind_nifty100list.csv from niftyindices.com (NIFTY 100 > Constituents)
+#   2. fetch universe --csv ind_nifty100list.csv --name "NIFTY 100"
+# `fetch candles` warns about any symbol missing from the instrument master.
+
+name = "NIFTY 100"
+exchange = "NSE"
+source = "public constituent listings; verify against niftyindices.com"
+as_of = "2026-10-27"
+symbols = [
+    "RELIANCE-EQ", "BHARTIARTL-EQ", "HDFCBANK-EQ", "ICICIBANK-EQ", "TCS-EQ", "SBIN-EQ",
+    "BAJFINANCE-EQ", "LT-EQ", "INFY-EQ", "KOTAKBANK-EQ", "HINDUNILVR-EQ", "SUNPHARMA-EQ",
+    "ADANIPORTS-EQ", "TITAN-EQ", "HCLTECH-EQ", "AXISBANK-EQ", "ADANIPOWER-EQ", "MARUTI-EQ",
+    "ADANIENT-EQ", "ULTRACEMCO-EQ", "ITC-EQ", "JSWSTEEL-EQ", "ETERNAL-EQ", "NTPC-EQ",
+    "ONGC-EQ", "BAJAJ-AUTO-EQ", "BAJAJFINSV-EQ", "BEL-EQ", "COALINDIA-EQ", "DIVISLAB-EQ",
+    "POWERGRID-EQ", "NESTLEIND-EQ", "ASIANPAINT-EQ", "TATASTEEL-EQ", "ADANIGREEN-EQ", "DMART-EQ",
+    "GRASIM-EQ", "HINDALCO-EQ", "EICHERMOT-EQ", "WIPRO-EQ", "TECHM-EQ", "SBILIFE-EQ",
+    "DLF-EQ", "ADANIENSOL-EQ", "ABB-EQ", "BOSCHLTD-EQ", "CGPOWER-EQ", "BPCL-EQ",
+    "CHOLAFIN-EQ", "BAJAJHLDNG-EQ", "CUMMINSIND-EQ", "BANKBARODA-EQ", "APOLLOHOSP-EQ", "HDFCLIFE-EQ",
+    "BRITANNIA-EQ", "CIPLA-EQ", "DRREDDY-EQ", "CANBK-EQ", "ENRIN-EQ", "TATACONSUM-EQ",
+    "AMBUJACEM-EQ", "HAL-EQ", "HINDZINC-EQ", "SHRIRAMFIN-EQ", "TVSMOTOR-EQ", "IOC-EQ",
+    "INDIGO-EQ", "TORNTPHARM-EQ", "SOLARINDS-EQ", "MOTHERSON-EQ", "HYUNDAI-EQ", "PIDILITIND-EQ",
+    "TRENT-EQ", "TMCV-EQ", "PNB-EQ", "UNIONBANK-EQ", "VBL-EQ", "JIOFIN-EQ",
+    "TATACAP-EQ", "LTM-EQ", "SIEMENS-EQ", "ZYDUSLIFE-EQ", "INDHOTEL-EQ", "GAIL-EQ",
+    "TATAPOWER-EQ", "JINDALSTEL-EQ", "PFC-EQ", "LODHA-EQ", "IRFC-EQ", "TMPV-EQ",
+    "HDFCAMC-EQ", "MUTHOOTFIN-EQ", "UNITDSPR-EQ", "VEDL-EQ", "GODREJCP-EQ", "SHREECEM-EQ",
+    "MAXHEALTH-EQ", "RECLTD-EQ", "MAZDOCK-EQ", "M&M-EQ",
+]
