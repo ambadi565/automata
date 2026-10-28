@@ -11,3 +11,4 @@ config/profiles/*/secrets.env
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+config/backup.env

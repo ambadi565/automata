@@ -1,0 +1,11 @@
+[Unit]
+Description=Intraday review every 15 minutes, 09:30–14:45 IST
+
+[Timer]
+OnCalendar=Mon..Fri 09:30,45 Asia/Kolkata
+OnCalendar=Mon..Fri 10..13:00,15,30,45 Asia/Kolkata
+OnCalendar=Mon..Fri 14:00,15,30,45 Asia/Kolkata
+Persistent=false
+
+[Install]
+WantedBy=timers.target

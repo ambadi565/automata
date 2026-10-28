@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly report at 10:13 … 14:13 IST (delivered by :15)
+
+[Timer]
+OnCalendar=Mon..Fri 10..14:13 Asia/Kolkata
+Persistent=false
+
+[Install]
+WantedBy=timers.target

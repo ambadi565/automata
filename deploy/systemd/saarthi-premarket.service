@@ -1,0 +1,13 @@
+[Unit]
+Description=Saarthi strategist: pre-market plan
+After=saarthi-engine.service network-online.target
+OnFailure=saarthi-alert@%n.service
+
+[Service]
+Type=oneshot
+User=saarthi
+WorkingDirectory=/opt/saarthi
+ExecStart=/opt/saarthi/strategist/.venv/bin/python strategist/agent.py premarket
+TimeoutStartSec=25min
+NoNewPrivileges=yes
+PrivateTmp=yes

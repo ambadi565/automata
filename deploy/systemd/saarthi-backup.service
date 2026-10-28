@@ -1,0 +1,10 @@
+[Unit]
+Description=Saarthi: make sure the engine is stopped, then back up state
+OnFailure=saarthi-alert@%n.service
+
+[Service]
+Type=oneshot
+# Runs as root only to stop the engine; the backup itself runs as saarthi.
+ExecStartPre=/bin/systemctl stop saarthi-engine.service
+ExecStart=/usr/sbin/runuser -u saarthi -- /opt/saarthi/deploy/backup.sh
+TimeoutStartSec=30min

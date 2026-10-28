@@ -1,0 +1,12 @@
+[Unit]
+Description=Saarthi strategist: intraday review
+After=saarthi-engine.service
+
+[Service]
+Type=oneshot
+User=saarthi
+WorkingDirectory=/opt/saarthi
+ExecStart=/opt/saarthi/strategist/.venv/bin/python strategist/agent.py review
+TimeoutStartSec=3min
+NoNewPrivileges=yes
+PrivateTmp=yes

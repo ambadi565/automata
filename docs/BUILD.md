@@ -96,34 +96,30 @@ uv run --project strategist strategist/agent.py validity --runs 20            # 
 
 ## 8. Deploy (VPS, unattended)
 ```bash
-sudo ./deploy/provision.sh   # user 'saarthi', chrony, ufw, logrotate, dirs, copies units
+sudo ./deploy/provision.sh   # user 'saarthi' (home /opt/saarthi), chrony, ufw, journald caps, build, units, timers
 ```
-systemd units (`deploy/systemd/`):
+systemd units (`deploy/systemd/`, all times IST via `OnCalendar=… Asia/Kolkata`, Mon–Fri):
 
-| Unit | Schedule (IST, Mon–Fri) | Does |
+| Unit | Schedule | Does |
 |---|---|---|
-| `saarthi-engine.service` | started by timer 08:30, `Restart=always` until 15:45 | boot checks, login, trade, square-off |
+| `saarthi-engine.timer` → `.service` | 08:30 | `engine preflight` (holiday → exit 0; disk, clock > 500 ms, secrets mode → exit 78, alert, no retry), then `engine run`; `Restart=on-failure` recovers crashes from SQLite + broker |
 | `saarthi-premarket.timer` | 08:45 | `agent.py premarket` |
 | `saarthi-review.timer` | every 15 min 09:30–14:45 | `agent.py review` |
-| `saarthi-report.timer` | 10:15, 11:15, 12:15, 13:15, 14:15 | hourly report |
-| `saarthi-eod.timer` | 15:35 | `agent.py eod` → EOD report |
-| `saarthi-stop.timer` | 15:45 | stop engine, backup DB + logs |
+| `saarthi-report.timer` | 10:13 … 14:13 | `agent.py hourly` (best effort), then `report hourly` |
+| `saarthi-eod.timer` | 15:36 | `agent.py eod` (best effort), then `report eod` → Telegram text + PNG + `data/reports/<date>.html` |
+| `saarthi-backup.timer` | 15:50 | stop the engine if still up; `deploy/backup.sh` (SQLite `.backup` + integrity check, journals, reports → `data/backups/<date>.tar.gz`, 30 days, optional `rclone` copy to `BACKUP_REMOTE`) |
+| `saarthi-alert@.service` | on any unit failure | Telegram alert via `deploy/notify.sh` |
 
-Example timer:
-```ini
-# saarthi-premarket.timer
-[Timer]
-OnCalendar=Mon..Fri 08:45 Asia/Kolkata
-Persistent=false
-[Install]
-WantedBy=timers.target
-```
-The engine exits immediately on NSE holidays (`config/holidays.toml`, refreshed yearly), so timers can stay simple.
+The engine exits immediately on NSE holidays (`config/holidays.toml`, refreshed yearly), so timers stay simple.
 
 ```bash
-sudo systemctl enable --now saarthi-*.timer
+systemctl list-timers 'saarthi-*'
 journalctl -u saarthi-engine -f
+sudo -u saarthi /opt/saarthi/target/release/engine exit-check --days 10 --reports   # M5 exit
 ```
+
+Telegram commands (only from `TELEGRAM_CHAT_ID`, while the engine runs): `/status`, `/pnl`, `/positions`, `/plan`,
+`/halt [reason]`, `/resume`. Commands sent before the engine started are not obeyed.
 
 ## 9. Laptop mode (dev / paper only)
 Same units work on Linux. On macOS, use `launchd` plists; on Windows, use WSL2 + systemd. Disable sleep, use wired power and Ethernet. Do **not** run live from a laptop.

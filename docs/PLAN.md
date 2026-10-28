@@ -59,10 +59,10 @@ Turning X into kX in a day is not a design target. Chasing it forces oversized b
 - **Exit:** the strategist produces valid plans 20/20 runs (`agent.py validity --runs 20`, needs an API key); a garbage plan is clamped or rejected in tests (done: `saarthi-plan`, engine `tests/day.rs`, `strategist/tests`)
 
 ### M5 — Reporting + autonomy (Week 8)
-- [ ] Hourly + EOD reports (Telegram text + PNG + HTML archive)
-- [ ] systemd services and timers, holiday calendar, boot checks
-- [ ] VPS provisioning (Mumbai, static IP), chrony, log rotation, backups
-- **Exit:** 10 consecutive fully unattended paper days with every report delivered
+- [x] Hourly + EOD reports (Telegram text + PNG + HTML archive); Telegram `/status /pnl /positions /plan /halt /resume`
+- [x] systemd services and timers, holiday calendar, boot checks (`engine preflight`)
+- [x] VPS provisioning script (`deploy/provision.sh`: chrony, ufw, journald caps, backups); renting the Mumbai VPS and static IP is manual
+- **Exit:** 10 consecutive fully unattended paper days with every report delivered (`engine exit-check --days 10 --reports`)
 
 ### M6 — Live, small (Weeks 9–12)
 - [ ] Static IP registered with Angel One; compliance checklist done

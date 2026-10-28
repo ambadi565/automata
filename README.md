@@ -8,7 +8,7 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 [ARCHITECTURE](docs/ARCHITECTURE.md), [AGENT](docs/AGENT.md) (strategist) and
 [BUILD](docs/BUILD.md).
 
-> **Status: milestone M4 (Claude strategist).** The workspace
+> **Status: milestone M5 (reporting + autonomy), code complete.** The workspace
 > logs in, downloads instruments and candles, streams live ticks, builds bars
 > and indicators, backtests three strategies walk-forward, and **paper-trades
 > a full session unattended**: every signal passes the hard risk limits,
@@ -16,7 +16,9 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 > a crash mid-trade is recovered from SQLite and the broker's book. A Claude
 > strategist writes the day's plan before the open, reviews it every 15
 > minutes and journals the day; the engine validates and clamps every plan
-> and can only be steered toward less risk. It
+> and can only be steered toward less risk. Hourly and end-of-day reports go
+> to Telegram, `/halt` works from the phone, and systemd timers run the whole
+> day on a VPS with boot checks and daily backups. It
 > **cannot place real orders**: the SmartAPI order methods return
 > `Unsupported` and `SAARTHI_MODE=live` is refused until go-live.
 
@@ -38,6 +40,9 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 | `crates/plan` (`saarthi-plan`) | Strategist plan: strict parsing, validation and clamping against `risk.toml`; per-entry verdicts |
 | `crates/control` (`saarthi-control`) | Loopback HTTP control API with a bearer token (state, positions, P&L, bars, signals, context, plan, halt, resume); no order endpoints |
 | `strategist/` | Python: the Claude strategist (pre-market plan, 15-minute review, hourly notes, EOD journal); see [AGENT](docs/AGENT.md) |
+| `crates/notify` (`saarthi-notify`) | Telegram Bot API: text, PNG, documents, owner-only command polling |
+| `bins/report` (`report`) | Hourly update and EOD report (text + equity PNG + HTML archive in `data/reports/`) |
+| `deploy/` | `provision.sh`, systemd units and timers, `backup.sh`, `notify.sh` |
 | `bins/engine` (`engine`) | The daemon: feed → bars → strategies → risk → OMS; replay, status, kill switch, M3 exit check |
 | `crates/broker::backtest` | `Backtest` broker: simulated exchange with Indian intraday charges (`config/costs.toml`) and slippage |
 | `bins/backtest` (`backtest`) | Walk-forward backtester, per-strategy metrics, equity curve, M2 go-live gate |
@@ -198,6 +203,23 @@ plan can only narrow and scale down trading, never raise risk above
 engine also refuses to raise the risk multiplier. With no valid plan the
 engine trades `config/plan.default.json` (all enabled strategies, half risk).
 If Claude is down, over budget or declines, nothing changes on the engine.
+
+## Unattended operation (M5)
+
+```bash
+sudo ./deploy/provision.sh                         # on a fresh Ubuntu VPS (Mumbai region)
+cargo run -p engine -- preflight                   # boot checks: trading day, disk, clock drift, secrets
+cargo run -p report -- hourly --print              # what the hourly Telegram update says right now
+cargo run -p report -- eod --print                 # build data/reports/<today>.html and print the summary
+cargo run -p engine -- exit-check --days 10 --reports   # M5 exit criterion
+```
+
+Every weekday the timers start the engine at 08:30 IST, run the strategist at
+08:45 and every 15 minutes, send the hourly update at :15, the EOD report
+(text, equity chart, HTML) at ~15:40 and back up at 15:50. Any failed unit
+pages Telegram. While the engine runs, the owner's Telegram chat (and only
+that chat) can send `/status`, `/pnl`, `/positions`, `/plan`, `/halt
+[reason]` and `/resume`. See BUILD §8 for the unit table.
 
 ## Multiple accounts
 

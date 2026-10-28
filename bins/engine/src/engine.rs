@@ -295,6 +295,14 @@ impl<B: Broker + ?Sized> Engine<B> {
             self.summary.critical_alerts += 1;
         }
         self.alerts.send(sev, text);
+        if sev != Severity::Info {
+            // The EOD report's incident log.
+            let detail = serde_json::json!({ "severity": format!("{sev:?}").to_lowercase(), "message": text });
+            let ts = chrono::Utc::now().to_rfc3339();
+            if let Err(e) = self.oms.db_mut().write(|w| w.event(&ts, "engine_alert", &detail)) {
+                tracing::warn!(error = %e, "could not record the alert");
+            }
+        }
     }
 
     fn reject(&mut self, code: &str) {

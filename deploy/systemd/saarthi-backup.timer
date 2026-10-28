@@ -1,0 +1,9 @@
+[Unit]
+Description=Stop the engine and back up at 15:50 IST
+
+[Timer]
+OnCalendar=Mon..Fri 15:50 Asia/Kolkata
+Persistent=true
+
+[Install]
+WantedBy=timers.target
