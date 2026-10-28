@@ -78,6 +78,9 @@ Required test suites before live:
   --walk-forward 60:20 --costs config/costs.toml --out data/reports/bt_orb
 ```
 Gate before enabling a strategy: OOS profit factor > 1.3, max DD < 8%, ≥ 200 trades, stable across parameter neighbourhood.
+`--strategy all` runs every strategy; `--fail-on-gate` exits 2 unless all pass; `--walk-forward off --params k=v,...` does a
+single in-sample run. Thresholds: `config/backtest.toml`. To test the pipeline without data:
+`backtest synth --data-dir /tmp/syn` (reports on synthetic data are labelled as such and mean nothing).
 
 ## 7. Run modes
 ```bash

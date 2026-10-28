@@ -8,11 +8,13 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 [ARCHITECTURE](docs/ARCHITECTURE.md), [AGENT](docs/AGENT.md) (strategist) and
 [BUILD](docs/BUILD.md).
 
-> **Status: milestone M1 (market data + indicators).** The workspace can log
+> **Status: milestone M2 (strategies + backtester).** The workspace can log
 > in, download the instrument master and historical candles, stream live ticks
-> over SmartAPI WebSocket 2.0, and build 1m/5m bars, session VWAP, the opening
-> range and incremental indicators. It **cannot place orders**: every order
-> method returns `Unsupported` until the M3 risk guard and OMS exist.
+> over SmartAPI WebSocket 2.0, build 1m/5m bars, session VWAP, the opening
+> range and incremental indicators, and backtest three strategies walk-forward
+> against Indian intraday charges and slippage. It **cannot place real
+> orders**: every SmartAPI order method returns `Unsupported` until the M3 risk
+> guard and OMS exist, and the backtest broker has no network code.
 
 ## Layout
 
@@ -24,9 +26,12 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 | `crates/feed` (`saarthi-feed`) | SmartAPI WebSocket 2.0: binary decode, subscribe, heartbeat, reconnect with backoff, staleness watchdog, raw-frame recorder |
 | `crates/bars` (`saarthi-bars`) | Tick → 1m → 5m bars, session VWAP, opening range, per-symbol indicator `Snapshot` |
 | `crates/ta` (`saarthi-ta`) | Incremental EMA, ATR, RSI, VWAP bands, volume z-score (checked against TA-Lib) |
+| `crates/strategy` (`saarthi-strategy`) | `Strategy` trait; ORB, VWAP reversion, trend momentum; parameter specs and optimiser grids |
+| `crates/broker::backtest` | `Backtest` broker: simulated exchange with Indian intraday charges (`config/costs.toml`) and slippage |
+| `bins/backtest` (`backtest`) | Walk-forward backtester, per-strategy metrics, equity curve, M2 go-live gate |
 | `bins/fetch` (`fetch`) | Market-data downloader CLI |
 | `bins/feedcheck` (`feedcheck`) | Records a live session and checks its bars against Angel's candles (M1 exit) |
-| `config/` | `engine.toml`, `risk.toml`, `universe.toml` (NIFTY 100), `holidays.toml`, `secrets.env.example` |
+| `config/` | `engine.toml`, `risk.toml`, `universe.toml` (NIFTY 100), `holidays.toml`, `costs.toml`, `backtest.toml`, `secrets.env.example` |
 
 ## Quick start
 
@@ -73,6 +78,51 @@ minutes that differ. Bars after a feed drop are marked partial and skipped.
 If the 09:15 bar is the only mismatch, flip `[bars] pre_open` in
 `engine.toml` and run `feedcheck replay --date …` to rebuild the bars from the
 recording without waiting for another session.
+
+## Backtest (M2)
+
+```bash
+cargo run --release -p fetch -- candles --tf 5m --days 365     # real data first
+cargo run --release -p backtest -- --strategy all --walk-forward 60:20 --out data/reports/bt
+```
+
+Each strategy is optimised on 60 trading days over its parameter grid,
+traded on the next 20 with the winner, and rolled forward; only those test
+segments count. Per strategy, `data/reports/bt/<strategy>/` gets
+`report.md`, `summary.json` (metrics + gate), `trades.csv`, `equity.csv`,
+`equity.svg` and `windows.csv`; `overview.md` compares them. Add
+`--fail-on-gate` to exit with status 2 unless every strategy passes.
+
+The **gate** (PLAN M2), judged on out-of-sample results only: profit factor
+\> 1.3, max drawdown < 8 %, ≥ 200 trades, and parameter stability (≥ 60 % of
+the chosen parameters' grid neighbours also profitable in-sample).
+Thresholds live in `config/backtest.toml`.
+
+How a backtest trades:
+
+- Signals form at a bar's close and fill at the **next** bar's open; a test
+  proves past trades don't change when future bars do.
+- Entries are bracket orders: market entry, SL-M stop, limit target. If a bar
+  could have hit both, the stop wins. Gaps through a stop fill at the open.
+  Targets need price to trade one tick through.
+- Sizing and limits come from `risk.toml`: risk per trade, max positions,
+  gross exposure, daily loss stop, trades per day, consecutive-loss
+  cooldown, no new entries after 14:45, square-off at 15:10.
+- Charges per executed order from `config/costs.toml` (Angel One brokerage,
+  STT, NSE transaction charge, SEBI fee, IPFT, stamp duty, GST), plus 2 bps
+  + 1 tick slippage on market and stop fills. Rates change; check
+  `as_of` against a recent contract note.
+
+No market data? `backtest synth` writes synthetic candles to exercise the
+pipeline. Every report built on them is stamped **SYNTHETIC DATA**:
+`--mode regimes` plants trend and range days for the strategies to find
+(passing the gate there proves nothing), `--mode random-walk` has no
+structure, and nothing should pass on it after costs.
+
+```bash
+cargo run --release -p backtest -- synth --data-dir /tmp/syn --symbols 30 --days 250
+cargo run --release -p backtest -- --data-dir /tmp/syn --universe /tmp/syn/synthetic_universe.toml --out /tmp/syn/reports
+```
 
 ## Multiple accounts
 

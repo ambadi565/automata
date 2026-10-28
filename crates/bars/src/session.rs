@@ -32,6 +32,11 @@ impl OpeningRange {
         self.start = Some(session_open);
     }
 
+    /// The session open the range is anchored to, once reset.
+    pub fn session_start(&self) -> Option<Ts> {
+        self.start
+    }
+
     fn end(&self) -> Option<Ts> {
         self.start.map(|s| s + TimeDelta::minutes(i64::from(self.minutes)))
     }

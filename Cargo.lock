@@ -226,6 +226,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "backtest"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "saarthi-bars",
+ "saarthi-broker",
+ "saarthi-core",
+ "saarthi-store",
+ "saarthi-strategy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "base32"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1735,6 +1755,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "toml",
  "totp-rs",
  "tracing",
  "wiremock",
@@ -1780,6 +1801,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "saarthi-strategy"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "saarthi-bars",
+ "saarthi-core",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
