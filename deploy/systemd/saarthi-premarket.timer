@@ -1,0 +1,9 @@
+[Unit]
+Description=Pre-market plan at 08:45 IST
+
+[Timer]
+OnCalendar=Mon..Fri 08:45 Asia/Kolkata
+Persistent=false
+
+[Install]
+WantedBy=timers.target

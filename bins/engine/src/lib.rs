@@ -4,6 +4,7 @@
 pub mod alerts;
 pub mod config;
 pub mod engine;
+pub mod telegram;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -152,6 +153,15 @@ pub fn paper(l: &Loaded, state: Option<PathBuf>) -> Result<Paper> {
     })?)
 }
 
+/// The account id without logging in: `explicit`, else `ANGEL_CLIENT_CODE`
+/// (environment, then the secrets file), else `default`.
+pub fn account_id(explicit: Option<&str>, secrets: &Path) -> String {
+    if let Some(a) = explicit {
+        return a.to_string();
+    }
+    secret(secrets.exists().then_some(secrets), "ANGEL_CLIENT_CODE").unwrap_or_else(|| "default".into())
+}
+
 /// A secret from the environment, else from the secrets file.
 pub fn secret(path: Option<&Path>, key: &str) -> Option<String> {
     let from_env = std::env::var(key).ok().filter(|v| !v.trim().is_empty());
@@ -180,7 +190,28 @@ pub struct ExitCheck {
     pub days: Vec<(NaiveDate, bool, String)>,
 }
 
-pub fn exit_check(days: &[(NaiveDate, DaySummary)], clock: &MarketClock, n: usize) -> ExitCheck {
+/// Reports delivered for one day (written by the `report` binary).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct Delivered {
+    pub hourly: u32,
+    pub eod: bool,
+}
+
+/// Hourly reports a full day should have (10:15 … 14:15).
+pub const HOURLY_PER_DAY: u32 = 5;
+
+pub fn delivered_key(date: NaiveDate) -> String {
+    format!("reports:{date}")
+}
+
+/// The M3 exit check (`reports: None`) or the M5 one (every report
+/// delivered as well).
+pub fn exit_check(
+    days: &[(NaiveDate, DaySummary)],
+    clock: &MarketClock,
+    n: usize,
+    reports: Option<&HashMap<NaiveDate, Delivered>>,
+) -> ExitCheck {
     let mut rows = Vec::new();
     let mut streak = 0usize;
     let mut best = 0usize;
@@ -192,6 +223,15 @@ pub fn exit_check(days: &[(NaiveDate, DaySummary)], clock: &MarketClock, n: usiz
         }
         if !s.flat_after_square_off {
             why.push("not confirmed flat".to_string());
+        }
+        if let Some(r) = reports {
+            let got = r.get(d).copied().unwrap_or_default();
+            if !got.eod {
+                why.push("EOD report not delivered".to_string());
+            }
+            if got.hourly < HOURLY_PER_DAY {
+                why.push(format!("{}/{HOURLY_PER_DAY} hourly reports", got.hourly));
+            }
         }
         let ok = why.is_empty();
         let consecutive = prev.is_none_or(|p| clock.next_trading_day(p).ok() == Some(*d));
@@ -216,6 +256,158 @@ pub fn exit_check(days: &[(NaiveDate, DaySummary)], clock: &MarketClock, n: usiz
 pub fn past(now: Ts, date: NaiveDate, hhmm: &str) -> Result<bool> {
     let t = saarthi_core::clock::parse_hhmm(hhmm)?;
     Ok(now >= MarketClock::at(date, t))
+}
+
+/// Boot checks (ARCHITECTURE §6, 08:30). Each line is (check, ok, detail).
+pub mod preflight {
+    use std::path::Path;
+    use std::process::Command;
+
+    /// Refuse to trade when the clock is off by more than this.
+    pub const MAX_DRIFT_SECS: f64 = 0.5;
+    /// Keep at least this much free under `data/`.
+    pub const MIN_FREE_KB: u64 = 2 * 1024 * 1024;
+
+    pub type Check = (&'static str, bool, String);
+
+    /// Offset from `chronyc -c tracking` (CSV: field 5 is the system time
+    /// offset in seconds; the last field the leap status).
+    pub fn parse_chrony(csv: &str) -> Result<f64, String> {
+        let f: Vec<&str> = csv.trim().split(',').collect();
+        if f.len() < 6 {
+            return Err(format!("unexpected chronyc output: {csv:?}"));
+        }
+        if f.last().is_some_and(|s| s.contains("Not synchronised")) {
+            return Err("chrony is not synchronised".into());
+        }
+        f[4].trim()
+            .parse::<f64>()
+            .map_err(|_| format!("unexpected chronyc offset: {:?}", f[4]))
+    }
+
+    /// Available KiB from `df -Pk <dir>`.
+    pub fn parse_df(out: &str) -> Option<u64> {
+        out.lines().nth(1)?.split_whitespace().nth(3)?.parse().ok()
+    }
+
+    pub fn clock() -> Check {
+        match Command::new("chronyc").args(["-c", "tracking"]).output() {
+            Ok(o) if o.status.success() => match parse_chrony(&String::from_utf8_lossy(&o.stdout)) {
+                Ok(off) => (
+                    "clock",
+                    off.abs() <= MAX_DRIFT_SECS,
+                    format!(
+                        "offset {:.0} ms (limit {:.0} ms)",
+                        off * 1000.0,
+                        MAX_DRIFT_SECS * 1000.0
+                    ),
+                ),
+                Err(e) => ("clock", false, e),
+            },
+            _ => (
+                "clock",
+                true,
+                "chronyc not available: drift unchecked (install chrony; provision.sh does)".into(),
+            ),
+        }
+    }
+
+    pub fn disk(dir: &Path) -> Check {
+        match Command::new("df").arg("-Pk").arg(dir).output() {
+            Ok(o) if o.status.success() => match parse_df(&String::from_utf8_lossy(&o.stdout)) {
+                Some(kb) => (
+                    "disk",
+                    kb >= MIN_FREE_KB,
+                    format!("{} MiB free under {}", kb / 1024, dir.display()),
+                ),
+                None => ("disk", false, "could not read df output".into()),
+            },
+            _ => ("disk", true, "df not available: free space unchecked".into()),
+        }
+    }
+
+    /// The secrets file must exist, hold the broker keys, and not be readable
+    /// by other users.
+    pub fn secrets(path: &Path) -> Check {
+        let Ok(meta) = std::fs::metadata(path) else {
+            let env_ok = ["ANGEL_API_KEY", "ANGEL_CLIENT_CODE", "ANGEL_MPIN", "ANGEL_TOTP_SECRET"]
+                .iter()
+                .all(|k| std::env::var(k).is_ok_and(|v| !v.trim().is_empty()));
+            return (
+                "secrets",
+                env_ok,
+                if env_ok {
+                    "from the environment".into()
+                } else {
+                    format!("{} missing and ANGEL_* not in the environment", path.display())
+                },
+            );
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = meta.permissions().mode();
+            if mode & 0o077 != 0 {
+                return (
+                    "secrets",
+                    false,
+                    format!(
+                        "{} is readable by other users (mode {:o}); chmod 600 it",
+                        path.display(),
+                        mode & 0o777
+                    ),
+                );
+            }
+        }
+        #[cfg(not(unix))]
+        let _ = meta;
+        let missing: Vec<&str> = ["ANGEL_API_KEY", "ANGEL_CLIENT_CODE", "ANGEL_MPIN", "ANGEL_TOTP_SECRET"]
+            .into_iter()
+            .filter(|k| crate::secret(Some(path), k).is_none())
+            .collect();
+        (
+            "secrets",
+            missing.is_empty(),
+            if missing.is_empty() {
+                "broker keys present".into()
+            } else {
+                format!("missing {}", missing.join(", "))
+            },
+        )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn parses_chrony_and_df() {
+            let ok = "A9FEA9FE,169.254.169.254,3,1761650000.1,-0.000123456,0.0001,0.0002,-12.3,0.01,0.05,0.001,0.002,64.5,Normal";
+            assert!((parse_chrony(ok).unwrap() + 0.000123456).abs() < 1e-12);
+            assert!(parse_chrony("x,y,3,1,0.1,0,0,0,0,0,0,0,0,Not synchronised").is_err());
+            assert!(parse_chrony("garbage").is_err());
+            let df =
+                "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/root 50000000 1000 4194304 1% /\n";
+            assert_eq!(parse_df(df), Some(4_194_304));
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn world_readable_secrets_fail() {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = tempfile::tempdir().unwrap();
+            let p = dir.path().join("secrets.env");
+            std::fs::write(
+                &p,
+                "ANGEL_API_KEY=a\nANGEL_CLIENT_CODE=b\nANGEL_MPIN=c\nANGEL_TOTP_SECRET=d\n",
+            )
+            .unwrap();
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+            assert!(!secrets(&p).1);
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600)).unwrap();
+            assert!(secrets(&p).1, "{:?}", secrets(&p));
+        }
+    }
 }
 
 pub fn ensure_dir(p: &Path) -> Result<()> {
@@ -253,12 +445,12 @@ mod tests {
             .iter()
             .map(|s| ok(s))
             .collect();
-        assert!(!exit_check(&days, &clock(), 5).passed);
+        assert!(!exit_check(&days, &clock(), 5, None).passed);
         days.push(ok("2026-10-30"));
-        assert!(exit_check(&days, &clock(), 5).passed);
+        assert!(exit_check(&days, &clock(), 5, None).passed);
         // A restart breaks the streak.
         days[2].1.restarts = 1;
-        let r = exit_check(&days, &clock(), 5);
+        let r = exit_check(&days, &clock(), 5, None);
         assert!(!r.passed);
         assert_eq!(r.streak, 2);
         // A missing trading day breaks it too.
@@ -266,6 +458,16 @@ mod tests {
             .iter()
             .map(|s| ok(s))
             .collect();
-        assert!(!exit_check(&gap, &clock(), 5).passed);
+        assert!(!exit_check(&gap, &clock(), 5, None).passed);
+        // M5: reports must have gone out too.
+        let mut sent: HashMap<NaiveDate, Delivered> = days
+            .iter()
+            .map(|(d, _)| (*d, Delivered { hourly: 5, eod: true }))
+            .collect();
+        days[2].1.restarts = 0;
+        assert!(exit_check(&days, &clock(), 5, Some(&sent)).passed);
+        sent.insert(d("2026-10-28"), Delivered { hourly: 4, eod: true });
+        let r = exit_check(&days, &clock(), 5, Some(&sent));
+        assert!(!r.passed && r.days[2].2.contains("4/5 hourly"), "{:?}", r.days);
     }
 }

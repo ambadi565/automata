@@ -1,0 +1,9 @@
+[Unit]
+Description=EOD journal and report from 15:36 IST
+
+[Timer]
+OnCalendar=Mon..Fri 15:36 Asia/Kolkata
+Persistent=true
+
+[Install]
+WantedBy=timers.target

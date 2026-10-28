@@ -1,0 +1,30 @@
+[package]
+name = "report"
+description = "Saarthi reports: the hourly Telegram update and the end-of-day report (Telegram text + PNG chart + HTML archive)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+engine = { path = "../engine" }
+saarthi-core.workspace = true
+saarthi-store.workspace = true
+saarthi-oms.workspace = true
+saarthi-notify.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "bitmap_encoder", "line_series", "ab_glyph"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

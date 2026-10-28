@@ -1,0 +1,14 @@
+[Unit]
+Description=Saarthi hourly report (strategist note + Telegram update)
+After=saarthi-engine.service
+
+[Service]
+Type=oneshot
+User=saarthi
+WorkingDirectory=/opt/saarthi
+# The note is best effort ("-"): the report goes out without it.
+ExecStart=-/opt/saarthi/strategist/.venv/bin/python strategist/agent.py hourly
+ExecStart=/opt/saarthi/target/release/report hourly
+TimeoutStartSec=4min
+NoNewPrivileges=yes
+PrivateTmp=yes

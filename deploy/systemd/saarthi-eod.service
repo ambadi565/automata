@@ -1,0 +1,14 @@
+[Unit]
+Description=Saarthi end of day: strategist journal, then the EOD report
+OnFailure=saarthi-alert@%n.service
+
+[Service]
+Type=oneshot
+User=saarthi
+WorkingDirectory=/opt/saarthi
+# The report is sent even if the journal fails (daily-loss days included).
+ExecStart=-/opt/saarthi/strategist/.venv/bin/python strategist/agent.py eod
+ExecStart=/opt/saarthi/target/release/report eod
+TimeoutStartSec=15min
+NoNewPrivileges=yes
+PrivateTmp=yes

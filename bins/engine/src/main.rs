@@ -19,7 +19,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use chrono::{NaiveDate, TimeDelta, Utc};
 use clap::{Parser, Subcommand};
-use engine::alerts::{LogAlerts, MemoryAlerts, SharedAlerts, TelegramAlerts};
+use engine::alerts::{Alerts, LogAlerts, MemoryAlerts, SharedAlerts, TelegramAlerts};
 use engine::config::{Config, Mode};
 use engine::{AccountFiles, DaySummary, Engine, Loaded, Parts, exit_check, load, paper, past, secs, warmup};
 use saarthi_broker::smartapi::{Credentials, SmartApi};
@@ -81,7 +81,13 @@ enum Cmd {
     ExitCheck {
         #[arg(long, default_value_t = 5)]
         days: usize,
+        /// M5: also require every hourly and EOD report to have been delivered.
+        #[arg(long)]
+        reports: bool,
     },
+    /// Boot checks before a session: trading day, disk, clock, secrets.
+    /// Exit 0 = go (or not a trading day), 78 = do not trade.
+    Preflight,
 }
 
 #[tokio::main]
@@ -110,22 +116,7 @@ fn secrets_path(p: &Path) -> Option<&Path> {
 
 /// The account id without logging in.
 fn account_id(cli: &Cli) -> String {
-    if let Some(a) = &cli.account {
-        return a.clone();
-    }
-    if let Ok(v) = std::env::var("ANGEL_CLIENT_CODE")
-        && !v.trim().is_empty()
-    {
-        return v.trim().to_string();
-    }
-    if let Ok(iter) = dotenvy::from_path_iter(&cli.secrets) {
-        for (k, v) in iter.flatten() {
-            if k == "ANGEL_CLIENT_CODE" && !v.trim().is_empty() {
-                return v.trim().to_string();
-            }
-        }
-    }
-    "default".into()
+    engine::account_id(cli.account.as_deref(), &cli.secrets)
 }
 
 async fn run(cli: Cli) -> Result<ExitCode> {
@@ -142,6 +133,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             ),
             Mode::Backtest => bail!("backtests run with the `backtest` binary"),
         },
+        Cmd::Preflight => preflight(&cli, &l, &acct).await,
         Cmd::Replay { date, frames, out } => replay(&l, *date, frames.clone(), out.clone()).await,
         Cmd::Status { date } => status(&l, &acct, date.unwrap_or_else(|| MarketClock::ist_date(Utc::now()))),
         Cmd::Halt { reason } => {
@@ -161,10 +153,21 @@ async fn run(cli: Cli) -> Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Cmd::ExitCheck { days } => {
+        Cmd::ExitCheck { days, reports } => {
             let db = Db::open(&acct.db())?;
             let all: Vec<(NaiveDate, DaySummary)> = db.days()?;
-            let r = exit_check(&all, &l.clock, *days);
+            let sent: Option<std::collections::HashMap<NaiveDate, engine::Delivered>> = if *reports {
+                let mut m = std::collections::HashMap::new();
+                for (d, _) in &all {
+                    if let Some(v) = db.kv_get(&engine::delivered_key(*d))? {
+                        m.insert(*d, v);
+                    }
+                }
+                Some(m)
+            } else {
+                None
+            };
+            let r = exit_check(&all, &l.clock, *days, sent.as_ref());
             for (d, ok, why) in &r.days {
                 println!("{d}  {}  {why}", if *ok { "PASS" } else { "FAIL" });
             }
@@ -172,11 +175,69 @@ async fn run(cli: Cli) -> Result<ExitCode> {
                 "{} consecutive clean paper day(s) at the end; {} required: {}",
                 r.streak,
                 r.required,
-                if r.passed { "M3 EXIT PASSED" } else { "not yet" }
+                match (r.passed, *reports) {
+                    (true, true) => "M5 EXIT PASSED",
+                    (true, false) => "M3 EXIT PASSED",
+                    _ => "not yet",
+                }
             );
             Ok(if r.passed { ExitCode::SUCCESS } else { ExitCode::from(2) })
         }
     }
+}
+
+async fn preflight(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCode> {
+    use engine::preflight as pf;
+    let now = Utc::now();
+    let date = MarketClock::ist_date(now);
+    let trading = match l.clock.is_trading_day(date) {
+        Ok(false) => {
+            println!("{date} is not a trading day: nothing to do");
+            return Ok(ExitCode::SUCCESS);
+        }
+        Ok(true) => (true, format!("{date} is a trading day")),
+        Err(e) => (false, format!("{e:#} (refresh config/holidays.toml)")),
+    };
+    engine::ensure_dir(&acct.dir)?;
+    let mode = l.cfg.mode()?;
+    let checks: Vec<pf::Check> = vec![
+        ("calendar", trading.0, trading.1),
+        (
+            "mode",
+            mode == Mode::Paper,
+            format!(
+                "{mode:?}{}",
+                if mode == Mode::Live {
+                    " is locked in this build"
+                } else {
+                    ""
+                }
+            ),
+        ),
+        pf::secrets(&cli.secrets),
+        pf::disk(l.layout.root()),
+        pf::clock(),
+    ];
+    let mut failed = Vec::new();
+    for (name, ok, detail) in &checks {
+        println!("{:<9} {}  {detail}", name, if *ok { "ok  " } else { "FAIL" });
+        if !ok {
+            failed.push(format!("{name}: {detail}"));
+        }
+    }
+    if failed.is_empty() {
+        return Ok(ExitCode::SUCCESS);
+    }
+    let msg = format!("preflight failed, not trading today: {}", failed.join("; "));
+    match TelegramAlerts::from_secrets(secrets_path(&cli.secrets), "Saarthi") {
+        Some(t) => {
+            t.send(Severity::Critical, &msg);
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
+        None => LogAlerts.send(Severity::Critical, &msg),
+    }
+    // EX_CONFIG: systemd does not retry it (RestartPreventExitStatus=78).
+    Ok(ExitCode::from(78))
 }
 
 fn status(l: &Loaded, acct: &AccountFiles, date: NaiveDate) -> Result<ExitCode> {
@@ -324,6 +385,12 @@ async fn run_paper(cli: &Cli, l: &Loaded, acct: &AccountFiles) -> Result<ExitCod
                 "CONTROL_API_TOKEN not set: control API off, the strategist cannot submit plans",
             ),
         }
+    }
+    match saarthi_notify::Telegram::from_secrets(secrets_path(&cli.secrets)) {
+        Some(tg) => {
+            tokio::spawn(engine::telegram::serve(tg, control.clone(), Utc::now().timestamp()));
+        }
+        None => tracing::info!("Telegram commands off (no bot token / chat id)"),
     }
     let mut timer = tokio::time::interval(Duration::from_secs(1));
     timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

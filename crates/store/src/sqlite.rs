@@ -211,6 +211,23 @@ impl Db {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// Events with `from <= ts < to` (RFC 3339 strings compare in time
+    /// order when both are UTC), oldest first.
+    pub fn events_between(&self, from: &str, to: &str) -> StoreResult<Vec<EventRow>> {
+        let mut st = self
+            .conn
+            .prepare("SELECT id, ts, kind, detail FROM events WHERE ts >= ?1 AND ts < ?2 ORDER BY id")?;
+        let rows = st.query_map(params![from, to], |r| {
+            Ok(EventRow {
+                id: r.get(0)?,
+                ts: r.get(1)?,
+                kind: r.get(2)?,
+                detail: r.get(3)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
     pub fn kv_get<T: DeserializeOwned>(&self, key: &str) -> StoreResult<Option<T>> {
         let v: Option<String> = self
             .conn

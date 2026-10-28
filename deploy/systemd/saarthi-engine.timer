@@ -1,0 +1,10 @@
+[Unit]
+Description=Start the Saarthi engine on weekday mornings
+
+[Timer]
+OnCalendar=Mon..Fri 08:30 Asia/Kolkata
+Persistent=true
+Unit=saarthi-engine.service
+
+[Install]
+WantedBy=timers.target

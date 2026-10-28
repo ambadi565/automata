@@ -1,0 +1,7 @@
+[Unit]
+Description=Telegram alert: %i failed
+
+[Service]
+Type=oneshot
+User=saarthi
+ExecStart=/opt/saarthi/deploy/notify.sh "🚨 %i failed on %H. journalctl -u %i -n 100"
