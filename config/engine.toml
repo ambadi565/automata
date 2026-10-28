@@ -85,3 +85,23 @@ index_tokens = [["NIFTY", "99926000"], ["BANKNIFTY", "99926009"], ["INDIA VIX", 
 
 [engine.indicators]
 tf = "5m"
+
+# The Claude strategist (strategist/, docs/AGENT.md). The Rust engine ignores
+# this table. Needs ANTHROPIC_API_KEY and CONTROL_API_TOKEN in secrets.env.
+[strategist]
+# Over this, routines are skipped and the engine keeps its plan.
+max_tokens_per_day = 1_500_000
+web_search_max_uses = 6
+# Let the API retry a declined request on another model.
+server_fallbacks = true
+# news_feeds = ["https://...rss"]   # default: Moneycontrol, ET Markets, Mint, NSE announcements
+
+# Per-routine overrides (defaults shown).
+# [strategist.modes.premarket]
+# model = "claude-opus-5-5"
+# effort = "high"
+# timeout_secs = 1200
+# [strategist.modes.review]
+# model = "claude-sonnet-5-5"
+# effort = "low"
+# timeout_secs = 90

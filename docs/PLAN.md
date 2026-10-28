@@ -52,11 +52,11 @@ Turning X into kX in a day is not a design target. Chasing it forces oversized b
 - **Exit:** 5 consecutive paper days with no crash and all positions flat by 15:10
 
 ### M4 — Claude strategist (Week 7)
-- [ ] Control API (`axum`), plan schema, validation, and clamping
-- [ ] Python agent (Claude Agent SDK) with tools from AGENT.md
-- [ ] Pre-market, intraday-review, and EOD prompts; JSON-schema-validated outputs
-- [ ] Fallback `plan.default.json`
-- **Exit:** the strategist produces valid plans 20/20 runs; a garbage plan is clamped or rejected in tests
+- [x] Control API (`axum`), plan schema, validation, and clamping
+- [x] Python agent (Anthropic SDK tool loop; see BUILD.md) with tools from AGENT.md
+- [x] Pre-market, intraday-review, hourly and EOD prompts; JSON-schema-validated outputs
+- [x] Fallback `plan.default.json`
+- **Exit:** the strategist produces valid plans 20/20 runs (`agent.py validity --runs 20`, needs an API key); a garbage plan is clamped or rejected in tests (done: `saarthi-plan`, engine `tests/day.rs`, `strategist/tests`)
 
 ### M5 — Reporting + autonomy (Week 8)
 - [ ] Hourly + EOD reports (Telegram text + PNG + HTML archive)

@@ -8,12 +8,15 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 [ARCHITECTURE](docs/ARCHITECTURE.md), [AGENT](docs/AGENT.md) (strategist) and
 [BUILD](docs/BUILD.md).
 
-> **Status: milestone M3 (risk guard, OMS, paper trading).** The workspace
+> **Status: milestone M4 (Claude strategist).** The workspace
 > logs in, downloads instruments and candles, streams live ticks, builds bars
 > and indicators, backtests three strategies walk-forward, and **paper-trades
 > a full session unattended**: every signal passes the hard risk limits,
 > every entry gets a broker-side stop, everything is squared off by 15:10 and
-> a crash mid-trade is recovered from SQLite and the broker's book. It
+> a crash mid-trade is recovered from SQLite and the broker's book. A Claude
+> strategist writes the day's plan before the open, reviews it every 15
+> minutes and journals the day; the engine validates and clamps every plan
+> and can only be steered toward less risk. It
 > **cannot place real orders**: the SmartAPI order methods return
 > `Unsupported` and `SAARTHI_MODE=live` is refused until go-live.
 
@@ -32,12 +35,15 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 | `crates/oms` (`saarthi-oms`) | Order state machine, broker-side SL pairing, engine-managed targets, exits until flat, reconciliation, crash recovery |
 | `crates/broker::paper` | `Paper` broker: simulated fills on live ticks with charges and slippage; its account survives restarts |
 | `crates/store::sqlite` | SQLite (WAL) hot store: trades, orders (written before sending), fills, events, day summaries |
+| `crates/plan` (`saarthi-plan`) | Strategist plan: strict parsing, validation and clamping against `risk.toml`; per-entry verdicts |
+| `crates/control` (`saarthi-control`) | Loopback HTTP control API with a bearer token (state, positions, P&L, bars, signals, context, plan, halt, resume); no order endpoints |
+| `strategist/` | Python: the Claude strategist (pre-market plan, 15-minute review, hourly notes, EOD journal); see [AGENT](docs/AGENT.md) |
 | `bins/engine` (`engine`) | The daemon: feed → bars → strategies → risk → OMS; replay, status, kill switch, M3 exit check |
 | `crates/broker::backtest` | `Backtest` broker: simulated exchange with Indian intraday charges (`config/costs.toml`) and slippage |
 | `bins/backtest` (`backtest`) | Walk-forward backtester, per-strategy metrics, equity curve, M2 go-live gate |
 | `bins/fetch` (`fetch`) | Market-data downloader CLI |
 | `bins/feedcheck` (`feedcheck`) | Records a live session and checks its bars against Angel's candles (M1 exit) |
-| `config/` | `engine.toml`, `risk.toml`, `universe.toml` (NIFTY 100), `holidays.toml`, `costs.toml`, `backtest.toml`, `secrets.env.example` |
+| `config/` | `engine.toml`, `risk.toml`, `plan.default.json`, `plan.schema.json`, `universe.toml` (NIFTY 100), `holidays.toml`, `costs.toml`, `backtest.toml`, `secrets.env.example` |
 
 ## Quick start
 
@@ -168,6 +174,31 @@ are set in `secrets.env`, to Telegram.
 15:10, checked by `engine exit-check --days 5` (a day with a restart does not
 count).
 
+## Claude strategist (M4)
+
+```bash
+cd strategist && uv sync && cd ..
+# secrets.env: ANTHROPIC_API_KEY, CONTROL_API_TOKEN (≥ 16 chars, e.g. `openssl rand -hex 32`)
+uv run --project strategist strategist/agent.py premarket   # 08:45: plan for the day (deadline 09:10)
+uv run --project strategist strategist/agent.py review      # every 15 min 09:30–14:45: patch only on a clear reason
+uv run --project strategist strategist/agent.py hourly      # 2–3 lines for the hourly report
+uv run --project strategist strategist/agent.py eod         # 15:35: trade review → data/journal/<date>.md
+uv run --project strategist strategist/agent.py validity --runs 20   # M4 exit: 20/20 schema-valid plans
+```
+
+The engine serves a control API on `127.0.0.1:7070` (`[engine] control_addr`)
+when `CONTROL_API_TOKEN` is set. The strategist reads the engine through it,
+reads history from Parquet, headlines from RSS and global cues via web search,
+and writes one thing: a plan (`config/plan.schema.json`). The engine parses
+it strictly, rejects it if malformed, stale or not newer, and clamps
+everything else (risk multiplier to 0–1, per-symbol risk to the hard limit,
+unknown symbols and strategies dropped), then reports every clamp back. A
+plan can only narrow and scale down trading, never raise risk above
+`risk.toml`; after two straight losses or half the daily loss budget the
+engine also refuses to raise the risk multiplier. With no valid plan the
+engine trades `config/plan.default.json` (all enabled strategies, half risk).
+If Claude is down, over budget or declines, nothing changes on the engine.
+
 ## Multiple accounts
 
 Nothing is tied to a single account. Credentials are a value passed to the
@@ -190,6 +221,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace        # or: cargo nextest run --workspace
 cargo test -p saarthi-risk -- breach            # every hard limit breached
 cargo test -p saarthi-oms -- crash_recovery     # real kill -9 mid-trade, then recovery
+cd strategist && uv run pytest && uv run ruff check .   # strategist: schema, retry/fallback, tools
 ```
 
 Broker tests run against a mocked HTTP server (`wiremock`) and feed tests

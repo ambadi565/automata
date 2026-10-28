@@ -49,7 +49,10 @@ thiserror = "1"
 anyhow = "1"
 async-trait = "0.1"
 ```
-Strategist (`strategist/pyproject.toml`): `claude-agent-sdk`, `httpx`, `polars`, `feedparser`, `pydantic`.
+Strategist (`strategist/pyproject.toml`, locked in `uv.lock`): `anthropic`, `httpx`, `polars`, `feedparser`, `pydantic`,
+`jsonschema`. It uses the Anthropic Python SDK's Messages API with its own tool loop rather than the Claude Agent
+SDK: the strategist needs only its own read-only tools plus web search, and leaving out the Agent SDK's built-in
+shell and file tools means a prompt-injected headline cannot run commands on the trading box.
 
 ## 4. Data bootstrap
 ```bash
@@ -64,7 +67,7 @@ Strategist (`strategist/pyproject.toml`): `claude-agent-sdk`, `httpx`, `polars`,
 cargo nextest run --workspace            # unit + integration
 cargo test -p saarthi-risk -- breach     # every hard limit has a breach test
 cargo test -p saarthi-oms -- crash_recovery   # real kill -9 of a child process mid-trade
-cd strategist && uv run pytest           # plan schema + clamping round-trips
+cd strategist && uv run pytest           # plan schema, retry/fallback loop, tools, history scan
 ```
 Required test suites before live:
 - `risk`: each limit breached → order blocked; daily loss → flatten + halt
@@ -87,7 +90,8 @@ single in-sample run. Thresholds: `config/backtest.toml`. To test the pipeline w
 SAARTHI_MODE=paper ./target/release/engine --config config/engine.toml run
 ./target/release/engine exit-check --days 5                                   # M3 exit
 SAARTHI_MODE=live  ./target/release/engine --config config/engine.toml   # only after M5
-uv run strategist/agent.py premarket|review|eod
+uv run --project strategist strategist/agent.py premarket|review|hourly|eod   # --dry-run submits nothing
+uv run --project strategist strategist/agent.py validity --runs 20            # M4 exit: 20/20 valid plans
 ```
 
 ## 8. Deploy (VPS, unattended)

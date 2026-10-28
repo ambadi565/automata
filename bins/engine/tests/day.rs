@@ -261,6 +261,18 @@ async fn gap_through_the_stop_hits_daily_loss_flattens_and_halts() {
     sim.run(at(day(), 15, 15, 0), |_| 955_00, 100).await;
     assert!(sim.engine.summary().flat_after_square_off);
     assert!(sim.engine.summary().halted.is_some());
+    // The strategist cannot add risk back after the loss.
+    let p = plan_json(1, r#""global_risk_multiplier":1.0"#);
+    let r = sim
+        .engine
+        .handle(
+            saarthi_control::Request::SubmitPlan(p),
+            sim.now - TimeDelta::minutes(10),
+        )
+        .await
+        .unwrap();
+    assert!(r["clamped"].to_string().contains("no adding risk"), "{r}");
+    assert!((sim.engine.plan().plan.global_risk_multiplier - 0.5).abs() < 1e-9);
 }
 
 #[tokio::test]

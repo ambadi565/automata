@@ -728,7 +728,20 @@ impl<B: Broker + ?Sized> Engine<B> {
         let plan = saarthi_plan::parse(json).map_err(|e| (422, e.to_string()))?;
         let symbols: BTreeSet<_> = self.insts.values().map(|i| i.symbol.clone()).collect();
         let ctx = self.plan_ctx(now, &symbols);
-        let eff = saarthi_plan::validate(plan, &ctx, false).map_err(|e| (422, e.to_string()))?;
+        let mut eff = saarthi_plan::validate(plan, &ctx, false).map_err(|e| (422, e.to_string()))?;
+        // AGENT.md §4.2: never add risk after two straight losses or once half
+        // the daily loss budget is gone.
+        let st = self.risk.state();
+        let limit = self.risk.daily_loss_limit().0;
+        let used_half = limit > 0 && (-st.worst_pnl.0).max(0) * 2 >= limit;
+        let current = self.plan.plan.global_risk_multiplier;
+        if (st.consecutive_losses >= 2 || used_half) && eff.plan.global_risk_multiplier > current {
+            eff.changes.push(format!(
+                "global_risk_multiplier {} held at {current}: no adding risk after losses",
+                eff.plan.global_risk_multiplier
+            ));
+            eff.plan.global_risk_multiplier = current;
+        }
         let reply = serde_json::json!({
             "accepted": true,
             "version": eff.version(),
@@ -798,6 +811,7 @@ impl<B: Broker + ?Sized> Engine<B> {
                         (-s.worst_pnl.0).max(0) as f64 / self.risk.daily_loss_limit().0 as f64
                     } else { 0.0 },
                     "trades_today": self.risk.state().trades_today,
+                    "consecutive_losses": self.risk.state().consecutive_losses,
                     "max_trades_per_day": self.limits.max_trades_per_day,
                     "rejections": s.rejected,
                 })
