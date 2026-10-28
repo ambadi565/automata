@@ -1,0 +1,9 @@
+{
+  "version": 0,
+  "market_bias": "neutral",
+  "regime": "range",
+  "global_risk_multiplier": 0.5,
+  "watchlist": [],
+  "paused_strategies": [],
+  "rationale": "Conservative fallback used when no valid strategist plan is in force: every enabled strategy on every configured symbol, at half the per-trade risk budget."
+}

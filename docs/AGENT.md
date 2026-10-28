@@ -24,10 +24,12 @@ If Claude is unavailable, the engine runs on the last valid plan or the conserva
 
 ## 2. Runtime
 
-- **SDK:** Claude Agent SDK (Python), headless, invoked by systemd timers.
-- **Model:** Claude Opus for pre-market and EOD; a faster model (Sonnet/Haiku) for the 15-minute reviews.
+- **SDK:** Anthropic Python SDK (Messages API) with the tool loop in `strategist/saarthi_strategist/runner.py`, headless, invoked by systemd timers. Only the tools below exist: no shell, no file access beyond the journal.
+- **Model:** Claude Opus (`claude-opus-5-5`, high effort) for pre-market and EOD; Claude Sonnet (`claude-sonnet-5-5`, low effort) for the 15-minute reviews and hourly notes. Override per routine in `[strategist.modes.*]`.
 - **Output:** structured JSON validated against `plan.schema.json`. On a validation failure, retry once with the error, then fall back.
-- **Budget:** `max_tokens_per_day` in `engine.toml`; when it's exceeded, reviews are skipped (the engine keeps running).
+- **Budget:** `[strategist] max_tokens_per_day` in `engine.toml`, tracked in `data/strategist/usage-<date>.json`; when it's exceeded, routines are skipped (the engine keeps running).
+- **Code, not the model, sets** the plan `version` and the default `valid_until` (today's square-off).
+- **The engine also refuses** to raise `global_risk_multiplier` after two consecutive losses or once half the daily loss limit is used.
 - **Timeouts:** pre-market 20 min; intraday review 90 s; EOD 10 min.
 
 ---
@@ -44,7 +46,9 @@ If Claude is unavailable, the engine runs on the last valid plan or the conserva
 | `scan_universe(filters)` | `history.py` | gap %, relative volume, ATR%, prior-day range for all symbols |
 | `get_market_context()` | `GET /context` | NIFTY/BANKNIFTY level, India VIX, advance/decline, sector heatmap |
 | `get_news(symbols?, since?)` | `news.py` (RSS + NSE announcements) | headlines, timestamps, sources |
-| `web_search(query)` | built-in | global cues (US close, SGX/GIFT Nifty, crude, USD/INR) |
+| `web_search(query)` | server tool (pre-market, EOD) | global cues (US close, SGX/GIFT Nifty, crude, USD/INR) |
+| `get_current_plan()` | `GET /plan` | the plan in force and its clamps |
+| `get_trades_today()` / `get_recent_days(n)` | SQLite, read-only (`store.py`) | EOD trade review (the engine has exited by then) |
 | `get_recent_signals(n)` | `GET /signals` | what fired, what risk rejected and why |
 | `submit_plan(plan)` | `POST /plan` | accepted / clamped diff / rejected with errors |
 | `write_journal(md)` | file in `data/journal/` | — |

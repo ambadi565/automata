@@ -1,0 +1,19 @@
+[package]
+name = "saarthi-plan"
+description = "The strategist's plan: schema, validation and clamping against the hard risk limits."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+saarthi-core.workspace = true
+saarthi-risk.workspace = true
+saarthi-strategy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

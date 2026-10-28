@@ -111,6 +111,8 @@ fn parts(paper: &Paper, db: Db, alerts: Arc<MemoryAlerts>, halt: PathBuf) -> Par
         sync_every: TimeDelta::seconds(1),
         square_off_retry: TimeDelta::seconds(5),
         square_off_alert_after: 3,
+        default_plan: saarthi_plan::load(&cfg("plan.default.json")).unwrap(),
+        index_tokens: vec![("NIFTY".into(), "99926000".into())],
     }
 }
 
@@ -259,6 +261,18 @@ async fn gap_through_the_stop_hits_daily_loss_flattens_and_halts() {
     sim.run(at(day(), 15, 15, 0), |_| 955_00, 100).await;
     assert!(sim.engine.summary().flat_after_square_off);
     assert!(sim.engine.summary().halted.is_some());
+    // The strategist cannot add risk back after the loss.
+    let p = plan_json(1, r#""global_risk_multiplier":1.0"#);
+    let r = sim
+        .engine
+        .handle(
+            saarthi_control::Request::SubmitPlan(p),
+            sim.now - TimeDelta::minutes(10),
+        )
+        .await
+        .unwrap();
+    assert!(r["clamped"].to_string().contains("no adding risk"), "{r}");
+    assert!((sim.engine.plan().plan.global_risk_multiplier - 0.5).abs() < 1e-9);
 }
 
 #[tokio::test]
@@ -307,4 +321,118 @@ async fn restart_mid_trade_recovers_and_still_ends_flat() {
     assert!(sim.engine.summary().flat_after_square_off);
     // The trade count survived the restart (no second ORB entry today).
     assert_eq!(sim.engine.risk().state().trades_today, 1);
+}
+
+fn plan_json(version: u64, body: &str) -> String {
+    format!(
+        r#"{{"version":{version},"valid_until":"{}T15:30:00+05:30","market_bias":"neutral","regime":"trend",{body}}}"#,
+        day()
+    )
+}
+
+#[tokio::test]
+async fn submitted_plan_is_clamped_versioned_and_survives_restart() {
+    use saarthi_control::Request;
+    let dir = tempfile::tempdir().unwrap();
+    let mut sim = Sim::new(dir.path()).await;
+    let now = sim.now;
+    assert!(sim.engine.plan().is_default);
+
+    // Over-limit risk and an unknown symbol are clamped, not obeyed.
+    let p = plan_json(
+        1,
+        r#""global_risk_multiplier":3.0,"watchlist":[
+            {"symbol":"RELIANCE-EQ","strategies":["orb","martingale"],"max_risk_pct":9.0},
+            {"symbol":"GME","strategies":["orb"],"max_risk_pct":0.1}]"#,
+    );
+    let r = sim.engine.handle(Request::SubmitPlan(p), now).await.unwrap();
+    assert_eq!(r["version"], 1);
+    let changes = r["clamped"].to_string();
+    assert!(changes.contains("clamped to 1"), "{changes}");
+    assert!(changes.contains("GME"), "{changes}");
+    assert!(changes.contains("valid_until capped"), "{changes}");
+    assert!(sim.engine.plan().plan.global_risk_multiplier <= 1.0);
+    assert!(sim.engine.plan().plan.watchlist[0].max_risk_pct <= 0.5);
+
+    // Not newer, garbage, and unknown fields are refused with 422.
+    for bad in [
+        plan_json(1, r#""global_risk_multiplier":0.5"#),
+        "{".to_string(),
+        plan_json(2, r#""global_risk_multiplier":0.5,"place_order":true"#),
+    ] {
+        assert_eq!(
+            sim.engine.handle(Request::SubmitPlan(bad), now).await.unwrap_err().0,
+            422
+        );
+    }
+    let got = sim.engine.handle(Request::Plan, now).await.unwrap();
+    assert_eq!(got["plan"]["version"], 1);
+
+    // A restart keeps today's plan.
+    drop(sim);
+    let paper = paper_at(dir.path());
+    let db = Db::open(&dir.path().join("saarthi.db")).unwrap();
+    let engine = Engine::new(
+        parts(&paper, db, Arc::new(MemoryAlerts::default()), dir.path().join("HALT")),
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(engine.plan().version(), 1);
+    assert!(!engine.plan().is_default);
+}
+
+#[tokio::test]
+async fn avoid_plan_blocks_the_breakout() {
+    use saarthi_control::Request;
+    let dir = tempfile::tempdir().unwrap();
+    let mut sim = Sim::new(dir.path()).await;
+    let p = plan_json(1, r#""market_bias":"avoid","global_risk_multiplier":0.5"#)
+        .replace(r#""market_bias":"neutral","#, "");
+    sim.engine.handle(Request::SubmitPlan(p), sim.now).await.unwrap();
+    sim.run_to_breakout().await;
+    assert_eq!(sim.engine.oms().trades().count(), 0);
+    let state = sim.engine.handle(Request::State, sim.now).await.unwrap();
+    assert_eq!(state["entries_open"], false);
+}
+
+#[tokio::test]
+async fn watchlist_without_the_symbol_denies_and_records_the_signal() {
+    use saarthi_control::Request;
+    let dir = tempfile::tempdir().unwrap();
+    let mut sim = Sim::new(dir.path()).await;
+    // A plan that only wants a short on RELIANCE: the long breakout is denied.
+    let p = plan_json(
+        1,
+        r#""global_risk_multiplier":1.0,"watchlist":[
+            {"symbol":"RELIANCE-EQ","strategies":["orb"],"direction":"short_only","max_risk_pct":0.25}]"#,
+    );
+    sim.engine.handle(Request::SubmitPlan(p), sim.now).await.unwrap();
+    sim.run_to_breakout().await;
+    assert_eq!(sim.engine.oms().trades().count(), 0);
+    let sig = sim.engine.handle(Request::Signals { n: 10 }, sim.now).await.unwrap();
+    assert!(sig.to_string().contains("plan_direction"), "{sig}");
+}
+
+#[tokio::test]
+async fn plan_scales_size_down() {
+    use saarthi_control::Request;
+    let dir = tempfile::tempdir().unwrap();
+    let mut full = Sim::new(dir.path()).await;
+    let p = plan_json(1, r#""global_risk_multiplier":1.0"#);
+    full.engine.handle(Request::SubmitPlan(p), full.now).await.unwrap();
+    full.run_to_breakout().await;
+    let q_full = full.engine.oms().trades().next().unwrap().planned_qty;
+
+    let dir2 = tempfile::tempdir().unwrap();
+    let mut quarter = Sim::new(dir2.path()).await;
+    let p = plan_json(1, r#""global_risk_multiplier":0.25"#);
+    quarter
+        .engine
+        .handle(Request::SubmitPlan(p), quarter.now)
+        .await
+        .unwrap();
+    quarter.run_to_breakout().await;
+    let q = quarter.engine.oms().trades().next().unwrap().planned_qty;
+    assert!(q < q_full && q > 0, "{q} vs {q_full}");
 }

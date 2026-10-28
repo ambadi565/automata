@@ -1,0 +1,21 @@
+[package]
+name = "saarthi-control"
+description = "Localhost control API (axum) for the strategist and the Telegram bot. Read state, submit plans, halt; never place orders."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
+
+[lints]
+workspace = true

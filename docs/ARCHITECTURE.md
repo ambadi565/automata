@@ -31,7 +31,7 @@
 | Cold store | **Parquet** via `polars`/`arrow` | Ticks, 1-min bars, history for backtests |
 | Local control API | `axum` on `127.0.0.1` | Claude's tools and the Telegram bot talk to the engine through it |
 | Logging and metrics | `tracing` + JSON logs | Every decision is auditable |
-| Strategist | **Claude Agent SDK (Python)**, Claude Opus | Tool use, headless, scheduled |
+| Strategist | **Anthropic Python SDK** (own tool loop), Claude Opus / Sonnet | Tool use, headless, scheduled; no shell or file tools |
 | News and context | RSS (NSE announcements, Moneycontrol, ET Markets) + web search tool | Pre-market and intraday context |
 | Reports | Telegram Bot API + PNG charts (`plotters`) + HTML/PDF EOD | Phone-first reporting |
 | Scheduling | **systemd timers** (Linux VPS) | Survives reboots; no human start |
@@ -46,7 +46,7 @@
 ```
                 ┌──────────────────────── SLOW PATH (seconds–minutes) ────────────────────────┐
                 │                                                                              │
-  News/RSS ───► │  STRATEGIST (Claude Agent SDK, Python)                                       │
+  News/RSS ───► │  STRATEGIST (Anthropic SDK, Python)                                          │
   Web search ─► │   • pre-market: universe scan → watchlist + plan.json                        │
                 │   • every 15 min: regime review → plan patch (pause/resize/retune)           │
                 │   • hourly: narrative for report   • EOD: journal + next-day notes           │
@@ -100,7 +100,7 @@ saarthi/
 │   ├── engine/      # the live/paper daemon
 │   ├── backtest/    # replay parquet through the same strategies
 │   └── fetch/       # instrument master + historical candles downloader
-├── strategist/      # Python: Claude Agent SDK agent (see AGENT.md)
+├── strategist/      # Python: Claude strategist agent (see AGENT.md)
 │   ├── agent.py
 │   ├── tools/       # engine_api.py, news.py, history.py
 │   └── prompts/     # premarket.md, intraday.md, eod.md

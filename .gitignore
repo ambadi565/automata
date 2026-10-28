@@ -5,3 +5,9 @@ config/*.secrets.env
 config/profiles/*/secrets.env
 *.parquet.tmp
 .env
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

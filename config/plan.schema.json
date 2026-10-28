@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saarthi.local/plan.schema.json",
+  "title": "Saarthi strategist plan",
+  "description": "Written by the strategist, validated and clamped by the engine against risk.toml. It can only narrow and scale down trading, never raise risk.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "valid_until", "market_bias", "regime", "global_risk_multiplier", "watchlist", "paused_strategies", "rationale"],
+  "properties": {
+    "version": {"type": "integer", "minimum": 1, "description": "Must be greater than the version in force."},
+    "valid_until": {"type": "string", "format": "date-time", "description": "RFC 3339 with offset, e.g. 2026-10-28T15:10:00+05:30. Capped at today's square-off."},
+    "market_bias": {"enum": ["bullish", "bearish", "neutral", "avoid"], "description": "avoid = no new entries today."},
+    "regime": {"enum": ["trend", "range", "volatile"]},
+    "global_risk_multiplier": {"type": "number", "minimum": 0, "maximum": 1, "description": "Scales every trade's risk budget."},
+    "watchlist": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Symbols to trade today. Empty = every configured symbol.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["symbol", "strategies", "direction", "max_risk_pct"],
+        "properties": {
+          "symbol": {"type": "string", "pattern": "^[A-Z0-9&_-]+-EQ$"},
+          "strategies": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["orb", "vwap_revert", "momentum"]}},
+          "direction": {"enum": ["long_only", "short_only", "both"]},
+          "max_risk_pct": {"type": "number", "minimum": 0, "maximum": 5, "description": "% of capital at risk per trade; capped at risk.toml's max_risk_per_trade_pct."},
+          "key_levels": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "support": {"type": "array", "maxItems": 10, "items": {"type": "number"}},
+              "resistance": {"type": "array", "maxItems": 10, "items": {"type": "number"}}
+            }
+          },
+          "notes": {"type": "string", "maxLength": 2000}
+        }
+      }
+    },
+    "paused_strategies": {"type": "array", "uniqueItems": true, "items": {"enum": ["orb", "vwap_revert", "momentum"]}},
+    "rationale": {"type": "string", "minLength": 1, "maxLength": 2000}
+  }
+}
