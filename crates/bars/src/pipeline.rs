@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use saarthi_core::{Bar, Price, Tf, Tick, Ts};
+use chrono::TimeDelta;
+use saarthi_core::{Bar, IST, MarketClock, Price, SessionTimes, Tf, Tick, Ts};
 use saarthi_ta::{Atr, Ema, Hlc, Rsi, VolumeZScore, VwapBands};
 use serde::{Deserialize, Serialize};
 
@@ -60,6 +61,9 @@ pub struct Snapshot {
     pub vwap: Option<Price>,
     pub vwap_upper: Option<f64>,
     pub vwap_lower: Option<f64>,
+    /// Volume-weighted standard deviation of price around the session VWAP,
+    /// so a strategy can use its own band width.
+    pub vwap_sigma: Option<f64>,
     pub ema_fast: Option<f64>,
     pub ema_slow: Option<f64>,
     pub atr: Option<f64>,
@@ -82,6 +86,7 @@ pub struct Update {
 #[derive(Debug, Clone)]
 pub struct SymbolState {
     params: IndicatorParams,
+    session: SessionTimes,
     builder: BarBuilder,
     or: OpeningRange,
     vwap: SessionVwap,
@@ -102,6 +107,7 @@ impl SymbolState {
             params.tf
         );
         SymbolState {
+            session: bars.session,
             builder: BarBuilder::new(bars),
             or: OpeningRange::new(params.opening_range_minutes),
             vwap: SessionVwap::default(),
@@ -188,6 +194,47 @@ impl SymbolState {
         }
     }
 
+    /// Backtest replay: feeds one completed historical bar on the indicator
+    /// timeframe (e.g. a 5m candle from `fetch`) instead of ticks. Session
+    /// levels are rebuilt from bars the way [`SymbolState::seed_session`]
+    /// does: VWAP and its bands from the typical price × volume, the opening
+    /// range from bar highs and lows. Afterwards the snapshot is what a live
+    /// engine would see at the bar's close.
+    ///
+    /// Bars must arrive oldest first. Do not mix with [`SymbolState::on_tick`]
+    /// on the same state.
+    pub fn on_history_bar(&mut self, b: &Bar) {
+        let day = b.ts.with_timezone(&IST).date_naive();
+        let open = MarketClock::at(day, self.session.open);
+        if self.or.session_start() != Some(open) {
+            self.vwap.reset();
+            self.bands.reset();
+            self.or.reset(open);
+            self.snap.or_high = None;
+            self.snap.or_low = None;
+            self.snap.vwap = None;
+            self.snap.vwap_upper = None;
+            self.snap.vwap_lower = None;
+            self.snap.vwap_sigma = None;
+        }
+        let end = b.ts + TimeDelta::minutes(i64::from(self.params.tf.minutes()));
+        let tp = (b.high.0 + b.low.0 + b.close.0) as f64 / 3.0;
+        self.vwap.on_trade(Price(tp.round() as i64), b.volume);
+        self.bands.update(tp, b.volume as f64);
+        self.or.on_trade(b.ts, b.high);
+        self.or.on_trade(b.ts, b.low);
+        self.or.on_time(end);
+        self.snap.ts = Some(end);
+        self.snap.ltp = Some(b.close);
+        self.snap.vwap = self.vwap.vwap().or(self.snap.vwap);
+        self.refresh_session_levels();
+        self.on_bar(&BarEvent {
+            tf: self.params.tf,
+            bar: *b,
+            partial: false,
+        });
+    }
+
     pub fn on_time(&mut self, now: Ts) -> Vec<BarEvent> {
         self.or.on_time(now);
         self.refresh_session_levels();
@@ -216,6 +263,7 @@ impl SymbolState {
         if let (Some(v), Some(s)) = (self.snap.vwap, self.bands.sigma()) {
             self.snap.vwap_upper = Some(v.0 as f64 + k * s);
             self.snap.vwap_lower = Some(v.0 as f64 - k * s);
+            self.snap.vwap_sigma = Some(s);
         }
     }
 

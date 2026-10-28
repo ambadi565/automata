@@ -1,8 +1,11 @@
 //! Broker abstraction plus the Angel One SmartAPI adapter.
 //!
 //! Strategies and the OMS only ever see the [`Broker`] trait, so the same code
-//! runs against backtest, paper and live implementations.
+//! runs against backtest, paper and live implementations. [`Backtest`]
+//! replays history through a simulated exchange with Indian intraday charges
+//! and slippage; it has no network code.
 
+pub mod backtest;
 pub mod error;
 pub mod ratelimit;
 pub mod secret;
@@ -12,6 +15,7 @@ pub mod types;
 use async_trait::async_trait;
 use saarthi_core::{Bar, Instrument, Tf, Ts};
 
+pub use backtest::Backtest;
 pub use error::{BrokerError, BrokerResult};
 pub use ratelimit::RateLimiter;
 pub use secret::Secret;

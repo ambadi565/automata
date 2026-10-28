@@ -387,3 +387,34 @@ fn config_parses_from_toml() {
     let p: IndicatorParams = toml::from_str("tf = \"15m\"\nema_fast = 5").unwrap();
     assert_eq!((p.tf, p.ema_fast, p.ema_slow), (Tf::M15, 5, 21));
 }
+
+#[test]
+fn history_bars_rebuild_session_levels_and_reset_each_day() {
+    let mut s = SymbolState::new("2885", BarConfig::default(), IndicatorParams::default());
+    let five = |day: &str, h: u32, m: u32, o, hi, lo, c, v| bar(at(day, h, m, 0, 0), o, hi, lo, c, v);
+    // Opening range forms over the first three 5m bars (09:15–09:30).
+    s.on_history_bar(&five(DAY, 9, 15, 1000, 1010, 995, 1005, 100));
+    assert_eq!(s.snapshot().or_high, None, "range still forming");
+    s.on_history_bar(&five(DAY, 9, 20, 1005, 1020, 1000, 1015, 100));
+    s.on_history_bar(&five(DAY, 9, 25, 1015, 1018, 990, 1000, 100));
+    let snap = s.snapshot();
+    assert_eq!((snap.or_high, snap.or_low), (Some(Price(1020)), Some(Price(990))));
+    // Snapshot time is the bar's close.
+    assert_eq!(snap.ts, Some(at(DAY, 9, 30, 0, 0)));
+    assert_eq!(snap.ltp, Some(Price(1000)));
+    assert_eq!(snap.bar_5m.map(|b| b.close), Some(Price(1000)));
+    // VWAP of typical prices (1003.33, 1011.67, 1002.67) with equal volume.
+    assert_eq!(snap.vwap, Some(Price(1006)));
+    assert!(snap.vwap_sigma.is_some_and(|x| x > 0.0));
+    // A breakout bar after the window doesn't move the range.
+    s.on_history_bar(&five(DAY, 9, 30, 1000, 1100, 1000, 1090, 400));
+    assert_eq!(s.snapshot().or_high, Some(Price(1020)));
+
+    // Next day: session levels reset, bar indicators carry on.
+    let ema_before = s.snapshot().ema_fast;
+    s.on_history_bar(&five("2026-10-28", 9, 15, 2000, 2010, 1990, 2000, 50));
+    let snap = s.snapshot();
+    assert_eq!(snap.or_high, None);
+    assert_eq!(snap.vwap, Some(Price(2000)));
+    assert_eq!(ema_before, None, "EMA 9 not warm after 4 bars");
+}

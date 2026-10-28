@@ -36,9 +36,10 @@ Turning X into kX in a day is not a design target. Chasing it forces oversized b
 - **Exit:** live 1-min bars match Angel's candles for a full session (±1 tick)
 
 ### M2 — Strategies + backtester (Weeks 3–4)
-- [ ] `strategy` trait + ORB, VWAP reversion, momentum
-- [ ] `broker::Backtest` with a realistic cost model (brokerage, STT, exchange, SEBI, GST, stamp duty) and slippage
-- [ ] `backtest` binary: walk-forward, per-strategy metrics, equity curve
+- [x] `strategy` trait + ORB, VWAP reversion, momentum
+- [x] `broker::Backtest` with a realistic cost model (brokerage, STT, exchange, SEBI, GST, stamp duty) and slippage
+- [x] `backtest` binary: walk-forward, per-strategy metrics, equity curve, gate check
+- [ ] Run the gate on 1+ year of real NIFTY 100 5-min candles (needs `fetch` with credentials; only synthetic data so far)
 - **Gate:** a strategy goes live only if out-of-sample shows PF > 1.3, max DD < 8%, ≥ 200 trades
 
 ### M3 — Risk + OMS + paper trading (Weeks 5–6)

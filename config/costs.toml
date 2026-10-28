@@ -1,0 +1,39 @@
+# Charges for NSE cash-equity INTRADAY (MIS) orders, used by the backtester
+# (and by the paper broker from M3). Percent fields are percentages of the
+# order's turnover: 0.025 means 0.025 %.
+#
+# Compiled 2026-10-28 from Angel One's published tariff and the statutory /
+# exchange rates in force since Oct 2024. These change (budgets, exchange
+# circulars, broker repricing): compare with a recent contract note before
+# trusting a backtest, and update as_of when you do.
+as_of = "2026-10-28"
+
+# Securities Transaction Tax, intraday equity: 0.025 % on the sell side only.
+stt_buy_pct        = 0.0
+stt_sell_pct       = 0.025
+# NSE transaction charge (cash market), revised 1 Oct 2024.
+exchange_txn_pct   = 0.00297
+# SEBI turnover fee: Rs 10 per crore.
+sebi_per_crore_inr = 10.0
+# NSE Investor Protection Fund Trust: Rs 10 per crore.
+ipft_per_crore_inr = 10.0
+# Stamp duty, intraday equity: 0.003 % on the buy side only.
+stamp_buy_pct      = 0.003
+# GST on brokerage + exchange + SEBI + IPFT charges.
+gst_pct            = 18.0
+
+# Angel One intraday: Rs 20 or 0.1 % per executed order, whichever is lower.
+# The Rs 5 floor is conservative; set it to 0 if your contract notes show none.
+[brokerage]
+flat_inr = 20.0
+pct      = 0.1
+min_inr  = 5.0
+
+# Execution cost on top of charges: market and stop orders fill this much
+# worse than the reference price, rounded to the tick against us.
+[slippage]
+bps                 = 2.0
+ticks               = 1
+tick_size_inr       = 0.05
+# Resting limit orders (targets) fill only once price trades 1 tick through.
+limit_through_ticks = 1

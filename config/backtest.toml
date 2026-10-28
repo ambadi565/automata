@@ -1,0 +1,30 @@
+# Backtest settings. Hard trading limits come from risk.toml and charges /
+# slippage from costs.toml, so a backtest trades under the same rules as the
+# engine.
+
+# Capital when risk.toml has capital_base_inr = 0 (read from funds live).
+capital_inr = 500000
+# Days of history replayed before a window starts, to warm up indicators.
+# No trades are taken during warm-up.
+warmup_days = 3
+# Bars the strategies run on (what `fetch` downloads by default).
+tf = "5m"
+
+[walk_forward]
+# Rolling windows in trading days: optimise on `train`, then trade the next
+# `test` days with the chosen parameters. Override with --walk-forward 60:20.
+train_days = 60
+test_days = 20
+# A parameter set needs this many in-sample trades to be eligible.
+min_train_trades = 30
+
+# The go-live gate (PLAN M2). Evaluated on the stitched out-of-sample
+# results only.
+[gate]
+min_profit_factor = 1.3
+max_drawdown_pct = 8.0
+min_trades = 200
+# Parameter stability: across all windows, at least this share of the
+# chosen parameters' grid neighbours must also be profitable in-sample
+# (net of charges, profit factor >= 1).
+min_neighbour_profitable_share = 0.6

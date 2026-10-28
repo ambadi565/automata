@@ -1,6 +1,17 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/broker", "crates/store", "crates/feed", "crates/bars", "crates/ta", "bins/fetch", "bins/feedcheck"]
+members = [
+    "crates/core",
+    "crates/broker",
+    "crates/store",
+    "crates/feed",
+    "crates/bars",
+    "crates/ta",
+    "crates/strategy",
+    "bins/fetch",
+    "bins/feedcheck",
+    "bins/backtest",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -15,6 +26,7 @@ saarthi-store = { path = "crates/store" }
 saarthi-feed = { path = "crates/feed" }
 saarthi-bars = { path = "crates/bars" }
 saarthi-ta = { path = "crates/ta" }
+saarthi-strategy = { path = "crates/strategy" }
 
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
