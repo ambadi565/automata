@@ -13,6 +13,7 @@ members = [
     "bins/fetch",
     "bins/feedcheck",
     "bins/backtest",
+    "bins/engine",
 ]
 
 [workspace.package]

@@ -8,13 +8,14 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 [ARCHITECTURE](docs/ARCHITECTURE.md), [AGENT](docs/AGENT.md) (strategist) and
 [BUILD](docs/BUILD.md).
 
-> **Status: milestone M2 (strategies + backtester).** The workspace can log
-> in, download the instrument master and historical candles, stream live ticks
-> over SmartAPI WebSocket 2.0, build 1m/5m bars, session VWAP, the opening
-> range and incremental indicators, and backtest three strategies walk-forward
-> against Indian intraday charges and slippage. It **cannot place real
-> orders**: every SmartAPI order method returns `Unsupported` until the M3 risk
-> guard and OMS exist, and the backtest broker has no network code.
+> **Status: milestone M3 (risk guard, OMS, paper trading).** The workspace
+> logs in, downloads instruments and candles, streams live ticks, builds bars
+> and indicators, backtests three strategies walk-forward, and **paper-trades
+> a full session unattended**: every signal passes the hard risk limits,
+> every entry gets a broker-side stop, everything is squared off by 15:10 and
+> a crash mid-trade is recovered from SQLite and the broker's book. It
+> **cannot place real orders**: the SmartAPI order methods return
+> `Unsupported` and `SAARTHI_MODE=live` is refused until go-live.
 
 ## Layout
 
@@ -27,6 +28,11 @@ Specs live in [`docs/`](docs): [PLAN](docs/PLAN.md) (milestones),
 | `crates/bars` (`saarthi-bars`) | Tick → 1m → 5m bars, session VWAP, opening range, per-symbol indicator `Snapshot` |
 | `crates/ta` (`saarthi-ta`) | Incremental EMA, ATR, RSI, VWAP bands, volume z-score (checked against TA-Lib) |
 | `crates/strategy` (`saarthi-strategy`) | `Strategy` trait; ORB, VWAP reversion, trend momentum; parameter specs and optimiser grids |
+| `crates/risk` (`saarthi-risk`) | `risk.toml` hard limits, the pre-trade risk guard, daily loss stop / profit lock, kill switch, order-rate throttle |
+| `crates/oms` (`saarthi-oms`) | Order state machine, broker-side SL pairing, engine-managed targets, exits until flat, reconciliation, crash recovery |
+| `crates/broker::paper` | `Paper` broker: simulated fills on live ticks with charges and slippage; its account survives restarts |
+| `crates/store::sqlite` | SQLite (WAL) hot store: trades, orders (written before sending), fills, events, day summaries |
+| `bins/engine` (`engine`) | The daemon: feed → bars → strategies → risk → OMS; replay, status, kill switch, M3 exit check |
 | `crates/broker::backtest` | `Backtest` broker: simulated exchange with Indian intraday charges (`config/costs.toml`) and slippage |
 | `bins/backtest` (`backtest`) | Walk-forward backtester, per-strategy metrics, equity curve, M2 go-live gate |
 | `bins/fetch` (`fetch`) | Market-data downloader CLI |
@@ -124,6 +130,44 @@ cargo run --release -p backtest -- synth --data-dir /tmp/syn --symbols 30 --days
 cargo run --release -p backtest -- --data-dir /tmp/syn --universe /tmp/syn/synthetic_universe.toml --out /tmp/syn/reports
 ```
 
+## Paper trading (M3)
+
+```bash
+SAARTHI_MODE=paper cargo run --release -p engine -- run    # start before 09:15; exits ~15:35 once flat
+cargo run -p engine -- status                              # today's summary and trades
+cargo run -p engine -- halt "reason"                       # kill switch: flatten + no new entries
+cargo run -p engine -- resume                              # lift it (refused after 14:45 / after the loss stop)
+cargo run -p engine -- exit-check --days 5                 # M3 exit criterion
+cargo run -p engine -- replay --date 2026-10-28            # paper-trade a `feedcheck record` session offline
+```
+
+Per tick: the paper exchange plays it, the OMS picks up fills, targets are
+checked, bars and indicators update, and each completed 5m bar runs the
+strategies. Every entry signal passes the risk guard (ARCHITECTURE §5.7, in
+order: kill switch, phase, feed health, daily P&L, trade count, positions,
+exposure, risk sizing, price band, duplicate) before the OMS sees it.
+Once a second: broker sync, kill-switch file, feed staleness (120 s silent
+with positions → flatten), the daily P&L monitor (2 % loss → flatten and
+halt for the day), reconciliation every 30 s (unknown broker positions →
+exit them and halt), and from 15:10 the square-off, retried until the broker
+confirms flat (critical alert if not flat after three checks).
+
+State lives in `data/accounts/<client>/paper/`: `saarthi.db` (SQLite WAL;
+orders are written before they are sent), `paper.json` (the simulated
+broker account) and the `HALT` kill-switch file. Kill the process at any
+point (`kill -9` included) and start it again: unfinished trades come back
+from SQLite, the broker's book says what happened meanwhile, and missing
+stops are re-armed. In paper mode the simulated exchange lives inside the
+engine, so stops do not trigger while it is down; live, the broker holds
+them.
+
+Alerts go to the log and, when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
+are set in `secrets.env`, to Telegram.
+
+**M3 exit:** 5 consecutive paper days with no crash and everything flat by
+15:10, checked by `engine exit-check --days 5` (a day with a restart does not
+count).
+
 ## Multiple accounts
 
 Nothing is tied to a single account. Credentials are a value passed to the
@@ -144,6 +188,8 @@ per-account state will live under `data/accounts/<client_code>/`.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace        # or: cargo nextest run --workspace
+cargo test -p saarthi-risk -- breach            # every hard limit breached
+cargo test -p saarthi-oms -- crash_recovery     # real kill -9 mid-trade, then recovery
 ```
 
 Broker tests run against a mocked HTTP server (`wiremock`) and feed tests

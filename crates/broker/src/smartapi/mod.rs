@@ -2,7 +2,8 @@
 //!
 //! M0 covers login, funds, the instrument master and historical candles.
 //! Order placement deliberately returns [`BrokerError::Unsupported`] until the
-//! OMS and risk guard land in M3, so this build cannot send a live order.
+//! go-live milestone wires and tests the order endpoints, so this build cannot
+//! send a live order. Paper trading uses [`crate::Paper`] instead.
 
 pub mod auth;
 pub mod historical;
@@ -339,24 +340,28 @@ impl Broker for SmartApi {
 
     async fn place(&self, _req: OrderRequest) -> BrokerResult<BrokerOrderId> {
         Err(BrokerError::Unsupported(
-            "order placement is disabled until the M3 risk guard and OMS exist",
+            "live order placement is disabled until go-live; use paper mode",
         ))
     }
 
     async fn modify(&self, _id: &BrokerOrderId, _m: Modify) -> BrokerResult<()> {
-        Err(BrokerError::Unsupported("order modification is disabled until M3"))
+        Err(BrokerError::Unsupported(
+            "live order modification is disabled until go-live",
+        ))
     }
 
     async fn cancel(&self, _id: &BrokerOrderId) -> BrokerResult<()> {
-        Err(BrokerError::Unsupported("order cancellation is disabled until M3"))
+        Err(BrokerError::Unsupported(
+            "live order cancellation is disabled until go-live",
+        ))
     }
 
     async fn positions(&self) -> BrokerResult<Vec<Position>> {
-        Err(BrokerError::Unsupported("positions arrive with the M3 OMS"))
+        Err(BrokerError::Unsupported("live positions arrive with go-live"))
     }
 
     async fn order_book(&self) -> BrokerResult<Vec<BrokerOrder>> {
-        Err(BrokerError::Unsupported("order book arrives with the M3 OMS"))
+        Err(BrokerError::Unsupported("live order book arrives with go-live"))
     }
 
     async fn funds(&self) -> BrokerResult<Funds> {
