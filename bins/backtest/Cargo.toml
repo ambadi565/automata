@@ -12,6 +12,7 @@ saarthi-broker.workspace = true
 saarthi-store.workspace = true
 saarthi-bars.workspace = true
 saarthi-strategy.workspace = true
+saarthi-risk.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true

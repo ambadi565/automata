@@ -1,0 +1,21 @@
+[package]
+name = "saarthi-risk"
+description = "Hard risk limits: pre-trade checks, daily loss stop, kill switch, order-rate throttle."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+saarthi-core.workspace = true
+serde.workspace = true
+toml.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time", "sync"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt"] }
+
+[lints]
+workspace = true

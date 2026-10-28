@@ -8,6 +8,8 @@ members = [
     "crates/bars",
     "crates/ta",
     "crates/strategy",
+    "crates/risk",
+    "crates/oms",
     "bins/fetch",
     "bins/feedcheck",
     "bins/backtest",
@@ -27,6 +29,8 @@ saarthi-feed = { path = "crates/feed" }
 saarthi-bars = { path = "crates/bars" }
 saarthi-ta = { path = "crates/ta" }
 saarthi-strategy = { path = "crates/strategy" }
+saarthi-risk = { path = "crates/risk" }
+saarthi-oms = { path = "crates/oms" }
 
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
@@ -47,6 +51,7 @@ dotenvy = "0.15"
 arrow-array = "56"
 arrow-schema = "56"
 parquet = { version = "56", default-features = false, features = ["arrow", "snap"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
 wiremock = "0.6"
 tempfile = "3"
 
